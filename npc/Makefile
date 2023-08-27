@@ -1,9 +1,18 @@
+# Configurations
 BUILD_DIR = ./build
 VSRC_DIR ?= ./vsrc
 CSRC_DIR = ./csrc
+CONFIG_NVBOARD_ENABLE=y
+
+
 VSRC = $(shell find $(VSRC_DIR) -type f -name "*.sv")
 CSRC = $(shell find $(CSRC_DIR) -type f -name "*.cpp")
-VXXFLAGS = --trace-fst -CFLAGS "-g" -LDFLAGS "-lfmt" -Mdir $(BUILD_DIR)
+CXX_INC += -I$(NVBOARD_HOME)/include
+LD_LIBS += -lfmt $(if $(CONFIG_NVBOARD_ENABLE), -lSDL2 -lSDL2_image)
+VXX_FLAGS = --trace-fst -CFLAGS "-g $(CXX_INC)" -LDFLAGS "$(LD_LIBS)" -Mdir $(BUILD_DIR)
+SIM_ELF = $(BUILD_DIR)/Vtop
+NVBOARD_BIND = $(BUILD_DIR)/auto_bind.cpp
+NVBOARD_DEP = $(if $(CONFIG_NVBOARD_ENABLE), $(NVBOARD_ARCHIVE) $(NVBOARD_BIND),)
 
 export PATH := $(PATH):$(abspath ./utils)
 
@@ -40,11 +49,19 @@ onOff:
 	cp $(VSRC_DIR)/OnOffSwitch/top.sv $(BUILD_DIR)/top.sv
 
 vhead:
-	verilator $(VXXFLAGS) --cc $(VSRC)
+	verilator $(VXX_FLAGS) --cc $(VSRC)
 
-sim:
+$(SIM_ELF): $(VSRC) $(CSRC) $(NVBOARD_DEP)
 	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
-	verilator $(VXXFLAGS) --cc $(VSRC) --exe $(CSRC) --build
-	$(BUILD_DIR)/Vtop
+	verilator $(VXX_FLAGS) --cc $(VSRC) --exe $(CSRC) $(NVBOARD_DEP) --build
+
+elf: $(SIM_ELF)
+
+sim: $(SIM_ELF)
+	$(SIM_ELF)
 
 -include ../Makefile
+-include $(NVBOARD_HOME)/scripts/nvboard.mk
+$(NVBOARD_BIND): constr/top.nxdc
+	mkdir -p $(BUILD_DIR)
+	python $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
