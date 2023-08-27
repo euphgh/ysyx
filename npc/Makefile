@@ -40,7 +40,7 @@ onOff:
 	cp $(VSRC_DIR)/OnOffSwitch/top.sv $(BUILD_DIR)/top.sv
 
 vhead:
-	verilator --trace-fst -CFLAGS "-g" -LDFLAGS "-lfmt" --cc $(VSRC)
+	verilator $(VXXFLAGS) --cc $(VSRC)
 
 sim:
 	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
