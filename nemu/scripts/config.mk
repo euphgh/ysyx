@@ -24,8 +24,10 @@ endif
 Q            := @
 KCONFIG_PATH := $(NEMU_HOME)/tools/kconfig
 FIXDEP_PATH  := $(NEMU_HOME)/tools/fixdep
-Kconfig      := $(NEMU_HOME)/Kconfig
-rm-distclean += include/generated include/config .config .config.old
+Kconfig      ?= $(NEMU_HOME)/Kconfig
+AUTOHEADER_DIR := $(if $(KCONFIG_AUTOHEADER), $(dir $(KCONFIG_AUTOHEADER)), include/generated)
+AUTOCONFIG_DIR := $(if $(KCONFIG_AUTOCONFIG), $(dir $(KCONFIG_AUTOCONFIG)), include/config)
+rm-distclean += $(AUTOHEADER_DIR) $(AUTOCONFIG_DIR) .config .config.old
 silent := -s
 
 CONF   := $(KCONFIG_PATH)/build/conf
