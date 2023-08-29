@@ -1,3 +1,6 @@
+#include <cstdlib>
+#ifdef __PS2Shower_MAIN__
+
 #include "Vtop.h"
 #include "macro.h"
 #include "npc/common.hpp"
@@ -34,28 +37,35 @@ int main() {
   IFDEF(CONFIG_NVBOARD_ENABLE, nvboard_bind_all_pins(top.get()));
   IFDEF(CONFIG_NVBOARD_ENABLE, nvboard_init());
 
-  /* mainloop for simulate */
-  while (contextp->gotFinish() == false) {
-
-    /* Init Input */
-    contextp->timeInc(1);
-    IFDEF(CONFIG_NVBOARD_ENABLE, nvboard_update());
-    // int a = rand() & 1;
-    // int b = rand() & 1;
-    // top->a = a;
-    // top->b = b;
-
-    int a = top->a;
-    int b = top->b;
-
-    /* Eval dump wave*/
+  top->clock = 0;
+  top->reset = 1;
+  for (int i = 0; i < 20; i++) {
+    top->clock = !top->clock;
     top->eval();
     IFDEF(CONFIG_WAVE_ON, tfp.dump(contextp->time()));
+    contextp->timeInc(1);
+  }
+  top->reset = 0;
 
-    /* Test and Print */
-    // printf("a = %d, b = %d, f = %d\n", a, b, top->f);
-    assert(top->f == (a ^ b));
+  /* mainloop for simulate */
+  while (contextp->gotFinish() == false) {
+    /* Init Input */
+    IFDEF(CONFIG_NVBOARD_ENABLE, nvboard_update());
+
+    /* posedge eval */
+    top->clock = !top->clock;
+    top->eval();
+    IFDEF(CONFIG_WAVE_ON, tfp.dump(contextp->time()));
+    contextp->timeInc(1);
+
+    /* negedge eval */
+    top->clock = !top->clock;
+    top->eval();
+    IFDEF(CONFIG_WAVE_ON, tfp.dump(contextp->time()));
+    contextp->timeInc(1);
   }
   top->final();
   IFDEF(CONFIG_WAVE_ON, tfp.close());
 }
+
+#endif
