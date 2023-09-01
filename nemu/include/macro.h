@@ -97,13 +97,9 @@
     type data[num];                                                            \
     uint32_t ptr;                                                              \
   } sname;                                                                     \
-  type sname##Pop(sname stack) {                                               \
-    type res = S_TOP(stack);                                                   \
-    S_POP(stack);                                                              \
-    return res;                                                                \
-  }
+  type sname##Pop(sname *stack) { return stack->data[--stack->ptr]; }
 
-#define S_CLEAR(stack) stack.ptr = 0;
+#define S_CLEAR(stack) stack.ptr = 0
 #define S_EMPTY(stack) (stack.ptr == 0)
 
 #define S_PUSH(stack, element)                                                 \
@@ -126,7 +122,7 @@
     }                                                                          \
   } while (0)
 
-#define S_TOP(stack) stack.data[stack.ptr]
+#define S_TOP(stack) stack.data[stack.ptr - 1]
 
 #if !defined(likely)
 #define likely(cond)   __builtin_expect(cond, 1)
