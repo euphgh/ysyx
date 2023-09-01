@@ -13,11 +13,11 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
-#include <isa.h>
-#include <cpu/cpu.h>
-#include <readline/readline.h>
-#include <readline/history.h>
 #include "sdb.h"
+#include <cpu/cpu.h>
+#include <isa.h>
+#include <readline/history.h>
+#include <readline/readline.h>
 
 static int is_batch_mode = false;
 
@@ -47,6 +47,24 @@ static int cmd_c(char *args) {
   return 0;
 }
 
+static int cmd_si(char *args);
+static int cmd_info(char *args);
+static int cmd_x(char *args);
+static int cmd_p(char *args);
+static int cmd_w(char *args);
+static int cmd_d(char *args);
+
+static int cmd_si(char *args) {
+  char *stepStr = strtok(args, " ");
+  cpu_exec(stepStr ? atoi(stepStr) : 1);
+  return 0;
+}
+
+static int cmd_info(char *args) { return 0; }
+static int cmd_x(char *args) { return 0; };
+static int cmd_p(char *args) { return 0; };
+static int cmd_w(char *args) { return 0; };
+static int cmd_d(char *args) { return 0; };
 
 static int cmd_q(char *args) {
   nemu_state.state = NEMU_QUIT;
@@ -59,13 +77,18 @@ static struct {
   const char *name;
   const char *description;
   int (*handler) (char *);
-} cmd_table [] = {
-  { "help", "Display information about all supported commands", cmd_help },
-  { "c", "Continue the execution of the program", cmd_c },
-  { "q", "Exit NEMU", cmd_q },
-
-  /* TODO: Add more commands */
-
+} cmd_table[] = {
+    {"help", "Display information about all supported commands", cmd_help},
+    {"c", "Continue the execution of the program", cmd_c},
+    {"q", "Exit NEMU", cmd_q},
+    {"si", "Step one instruction exactly", cmd_si},
+    {"info",
+     "Generic command for showing things about the program being debugged",
+     cmd_info},
+    {"x", "Examine memory: x/FMT ADDRESS", cmd_x},
+    {"p", "Print value of expression EXP", cmd_p},
+    {"w", "Set a watchpoint for EXPRESSION", cmd_w},
+    {"d", "Delete all or some breakpoints or watchpoints", cmd_d},
 };
 
 #define NR_CMD ARRLEN(cmd_table)

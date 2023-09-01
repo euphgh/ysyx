@@ -18,6 +18,45 @@
 
 #include <common.h>
 
+enum {
+  TK_NOTYPE = 256,
+
+  TK_EQ,
+  TK_NE,
+  TK_GT,
+  TK_LT,
+  TK_GE,
+  TK_LE,
+
+  TK_MINUS,
+  TK_DEREF,
+
+  TK_DEC,
+  TK_HEX,
+  TK_REGS,
+
+  TK_OR,
+  TK_AND,
+};
+
+typedef struct token {
+  uint16_t type;
+  char str[32];
+} Token;
+extern Token tokens[32];
+extern int nr_token;
+
+typedef struct Node DAGnode;
+struct Node {
+  word_t var;
+  DAGnode *left;
+  DAGnode *right;
+  uint16_t synType;
+  const char *str;
+};
+
+DAGnode *expr2dag(char *e, bool *success);
+bool evalDAG(DAGnode *root);
 word_t expr(char *e, bool *success);
 
 #endif

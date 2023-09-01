@@ -13,38 +13,46 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
-#include <isa.h>
+#include "common.h"
+#include "sdb.h"
+// #include <isa.h>
 
+/* clang-format off */
 /* We use the POSIX regex functions to process regular expressions.
  * Type 'man regex' for more information about POSIX regex functions.
  */
 #include <regex.h>
 
-enum {
-  TK_NOTYPE = 256, TK_EQ,
-
-  /* TODO: Add more token types */
-
-};
+bool isData(int tokenType);
+bool isOp(int tokenType);
+int getPrec(int tokenType);
 
 static struct rule {
   const char *regex;
   int token_type;
 } rules[] = {
+    {" +", TK_NOTYPE}, // spaces
 
-  /* TODO: Add more rules.
-   * Pay attention to the precedence level of different rules.
-   */
+    {"[1-9]\\d*", TK_DEC},
+    {"0[xX][0-9A-Fa-f]+", TK_DEC},
 
-  {" +", TK_NOTYPE},    // spaces
-  {"\\+", '+'},         // plus
-  {"==", TK_EQ},        // equal
+    /* operator */
+    {"\\+", '+'},
+    {"-", '-'},
+    {"\\*", '*'},
+    {"\\/", '/'},        
+    {"\\(", '('},        
+    {"\\)", ')'},        
+    {"!", '!'},        
+
+    {"==", TK_EQ},     // equal
 };
 
 #define NR_REGEX ARRLEN(rules)
 
 static regex_t re[NR_REGEX] = {};
 
+/* clang-format on */
 /* Rules are used for many times.
  * Therefore we compile them only once before any usage.
  */
@@ -62,15 +70,10 @@ void init_regex() {
   }
 }
 
-typedef struct token {
-  int type;
-  char str[32];
-} Token;
+Token tokens[32] __attribute__((used)) = {};
+int nr_token __attribute__((used)) = 0;
 
-static Token tokens[32] __attribute__((used)) = {};
-static int nr_token __attribute__((used))  = 0;
-
-static bool make_token(char *e) {
+bool make_token(char *e) {
   int position = 0;
   int i;
   regmatch_t pmatch;
@@ -89,15 +92,14 @@ static bool make_token(char *e) {
 
         position += substr_len;
 
-        /* TODO: Now a new token is recognized with rules[i]. Add codes
-         * to record the token in the array `tokens'. For certain types
-         * of tokens, some extra actions should be performed.
-         */
-
-        switch (rules[i].token_type) {
-          default: TODO();
-        }
-
+        /* skip empty char */
+        int thisType = rules[i].token_type;
+        if (thisType == TK_NOTYPE)
+          break;
+        /* assign tokens array */
+        tokens[nr_token].type = thisType;
+        strncpy(tokens[nr_token].str, substr_start, substr_len);
+        nr_token++;
         break;
       }
     }
@@ -111,15 +113,24 @@ static bool make_token(char *e) {
   return true;
 }
 
+DAGnode *expr2dag(char *e, bool *success) {
+  DAGnode *res = NULL;
+  *success = make_token(e);
+  if (success) {
+    DAGnode *orep();
+    res = orep();
+  }
+  *success = res != NULL;
+  return res;
+}
 
 word_t expr(char *e, bool *success) {
-  if (!make_token(e)) {
-    *success = false;
-    return 0;
+  DAGnode *root = expr2dag(e, success);
+  if (success) {
+    *success = evalDAG(root);
+    return root->var;
   }
-
-  /* TODO: Insert codes to evaluate the expression. */
-  TODO();
-
   return 0;
 }
+
+#undef NR_REGEX
