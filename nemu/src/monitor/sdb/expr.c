@@ -73,7 +73,7 @@ void init_regex() {
 Token tokens[32] __attribute__((used)) = {};
 int nr_token __attribute__((used)) = 0;
 
-bool make_token(char *e) {
+static bool make_token(const char *e) {
   int position = 0;
   int i;
   regmatch_t pmatch;
@@ -84,7 +84,7 @@ bool make_token(char *e) {
     /* Try all rules one by one. */
     for (i = 0; i < NR_REGEX; i ++) {
       if (regexec(&re[i], e + position, 1, &pmatch, 0) == 0 && pmatch.rm_so == 0) {
-        char *substr_start = e + position;
+        const char *substr_start = e + position;
         int substr_len = pmatch.rm_eo;
 
         Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
@@ -113,7 +113,7 @@ bool make_token(char *e) {
   return true;
 }
 
-DAGnode *expr2dag(char *e, bool *success) {
+DAGnode *expr2dag(const char *e, bool *success) {
   DAGnode *res = NULL;
   *success = make_token(e);
   if (success) {
@@ -124,7 +124,7 @@ DAGnode *expr2dag(char *e, bool *success) {
   return res;
 }
 
-word_t expr(char *e, bool *success) {
+word_t expr(const char *e, bool *success) {
   DAGnode *root = expr2dag(e, success);
   if (success) {
     *success = evalDAG(root);

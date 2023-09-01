@@ -52,11 +52,12 @@ struct Node {
   DAGnode *left;
   DAGnode *right;
   uint16_t synType;
-  const char *str;
+  char *str;
+  bool isImm;
 };
 
-DAGnode *expr2dag(char *e, bool *success);
+DAGnode *expr2dag(const char *e, bool *success);
 bool evalDAG(DAGnode *root);
-word_t expr(char *e, bool *success);
+word_t expr(const char *e, bool *success);
 
 #endif

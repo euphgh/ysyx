@@ -3,6 +3,7 @@
 #include "sdb.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 /*
 expr    : ande || ande
 
@@ -31,15 +32,29 @@ prim    : ( expr )
 */
 
 static int curPtr = 0;
-static char *foundStr = 0;
+static const char *foundStr = NULL;
 static uint16_t foundOp = 0;
 #define UHEX_WORD "%" MUXDEF(CONFIG_ISA64, PRIx64, PRIx32)
 #define UDEC_WORD "%" MUXDEF(CONFIG_ISA64, PRIu64, PRIu32)
 
 static char *node2Str(DAGnode *node) {
-  char *buf = malloc(64);
-  sprintf(buf, "{ %s, %u, %lu }", node->str, node->synType, node->var);
+  static char buf[64];
+  sprintf(buf, "{ \"%s\", %s, %u, %lu }", node->str,
+          node->isImm ? "Imm" : "Var", node->synType, node->var);
   return buf;
+}
+
+static char *dstrcpy(const char *src) {
+  char *dst = (char *)malloc(strlen(src) + 1);
+  strcpy(dst, src);
+  return dst;
+}
+
+static DAGnode *dnodecpy(const DAGnode *src) {
+  DAGnode *dst = (DAGnode *)malloc(sizeof(DAGnode));
+  *dst = *src;
+  dst->str = dstrcpy(src->str);
+  return dst;
 }
 
 void showNode(DAGnode *node) {
@@ -94,7 +109,7 @@ DAGnode *prim();
   uint16_t list[] = {__VA_ARGS__, 0};                                          \
   while (findFirst(list)) {                                                    \
     res = (DAGnode *)malloc(sizeof(DAGnode));                                  \
-    res->str = foundStr;                                                       \
+    res->str = dstrcpy(foundStr);                                              \
     res->left = left;                                                          \
     res->synType = foundOp;                                                    \
     res->right = nextTerm();                                                   \
@@ -114,7 +129,7 @@ DAGnode *unar() {
   uint16_t target[] = {'-', '*', '!', 0};
   if (findFirst(target)) {
     res = (DAGnode *)malloc(sizeof(DAGnode));
-    res->str = foundStr;
+    res->str = dstrcpy(foundStr);
     if (foundOp == '-') {
       res->synType = TK_MINUS;
     } else if (foundOp == '*') {
@@ -147,7 +162,7 @@ DAGnode *prim() {
     res->synType = tokens[curPtr].type;
     res->left = NULL;
     res->right = NULL;
-    res->str = tokens[curPtr].str;
+    res->str = dstrcpy(tokens[curPtr].str);
 
     const char *fmt = tokens[curPtr].type == TK_HEX   ? UHEX_WORD
                       : tokens[curPtr].type == TK_DEC ? UDEC_WORD
@@ -171,15 +186,50 @@ void showDAG(DAGnode *node) {
     showDAG(node->right);
 }
 
+DAGnode *simplifyDAG(DAGnode *old) {
+  DAGnode *sim = dnodecpy(old);
+  if (!old->isImm) {
+    if (old->left) {
+      sim->left = simplifyDAG(old->left);
+      if (old->right) {
+        sim->right = simplifyDAG(old->right);
+      }
+    }
+  } else {
+    sim->left = NULL;
+    sim->right = NULL;
+  }
+  return sim;
+}
+
+void deleteDAG(DAGnode *node) {
+  if (node->left) {
+    deleteDAG(node->left);
+    node->left = NULL;
+    if (node->right)
+      deleteDAG(node->right);
+    node->right = NULL;
+  }
+  showNode(node);
+  free(node->str);
+  free(node);
+}
+
 bool evalDAG(DAGnode *node) {
   bool success = true;
   if (node->left) {
     word_t left, right = 0;
     success &= evalDAG(node->left);
+    if (!success)
+      return false;
     left = node->left->var;
+    node->isImm = node->left;
     if (node->right) {
       success &= evalDAG(node->right);
+      if (!success)
+        return false;
       right = node->right->var;
+      node->isImm &= node->right->isImm;
     }
     switch (node->synType) {
     case '+':
@@ -204,7 +254,8 @@ bool evalDAG(DAGnode *node) {
       node->var = ~left;
       break;
     case TK_DEREF:
-      printf("Mem[" FMT_WORD "] = 0\n", node->var);
+      printf("Mem[" FMT_WORD "] = 0\n", left);
+      node->isImm = false;
       node->var = 0;
       break;
     case TK_MINUS:
@@ -215,21 +266,36 @@ bool evalDAG(DAGnode *node) {
     }
   } else {
     Assert(node->right == NULL, "Right not null but left null");
+    node->isImm = true;
     if (node->synType == TK_REGS) {
       printf("Reg[%s] = 0\n", node->str);
       node->var = 0;
+      node->isImm = false;
     }
   }
-  showNode(node);
   return success;
 }
 
 int main() {
-  char *q = "(1 * 2) + *3";
+  const char *q = "(1 + 2) * *3";
   bool success = true;
   void init_regex();
   init_regex();
-  word_t ans = expr(q, &success);
-  printf("%d: %s = %lu\n", success, q, ans);
+  DAGnode *old = expr2dag(q, &success);
+  success &= evalDAG(old);
+  printf("[old] %d: %s = %lu\n", success, q, old->var);
+  showDAG(old);
+
+  if (success) {
+    DAGnode *sim = simplifyDAG(old);
+    success &= evalDAG(old);
+    printf("[sim] %d: %s = %lu\n", success, q, sim->var);
+    showDAG(sim);
+    printf("free sim\n");
+    deleteDAG(sim);
+  }
+  printf("free old\n");
+  deleteDAG(old);
+
   return 0;
 }
