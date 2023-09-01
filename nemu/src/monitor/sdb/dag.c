@@ -1,5 +1,3 @@
-#include "common.h"
-#include "debug.h"
 #include "sdb.h"
 /*
 expr    : ande || ande
@@ -207,7 +205,6 @@ void deleteDAG(DAGnode *node) {
       deleteDAG(node->right);
     node->right = NULL;
   }
-  showNode(node);
   free(node->str);
   free(node);
 }
@@ -273,26 +270,4 @@ bool evalDAG(DAGnode *node) {
   return success;
 }
 
-int main() {
-  const char *q = "(1 + 2) * *3";
-  bool success = true;
-  void init_regex();
-  init_regex();
-  DAGnode *old = expr2dag(q, &success);
-  success &= evalDAG(old);
-  printf("[old] %d: %s = %lu\n", success, q, old->var);
-  showDAG(old);
-
-  if (success) {
-    DAGnode *sim = simplifyDAG(old);
-    success &= evalDAG(old);
-    printf("[sim] %d: %s = %lu\n", success, q, sim->var);
-    showDAG(sim);
-    printf("free sim\n");
-    deleteDAG(sim);
-  }
-  printf("free old\n");
-  deleteDAG(old);
-
-  return 0;
-}
+#undef BinaryMode
