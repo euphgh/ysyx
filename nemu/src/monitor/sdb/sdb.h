@@ -68,6 +68,11 @@ struct Node {
   bool isImm;
 };
 
+typedef struct {
+  uint8_t syn[32];
+  word_t src[12];
+} rpn_t;
+
 DAGnode *expr2dag(const char *e, bool *success);
 bool evalDAG(DAGnode *root);
 word_t expr(const char *e, bool *success);
