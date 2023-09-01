@@ -31,8 +31,86 @@ static char *code_format =
 "  return 0; "
 "}";
 
+static size_t bufPtr = 0;
+static size_t tokenCnt = 0;
+
+static uint64_t rand64() {
+  uint64_t random_value;
+
+  /* 生成 8 字节的随机数 */
+  unsigned char buffer[8];
+  RAND_bytes(buffer, sizeof(buffer));
+
+  /* 将随机数转换为 uint64_t 类型 */
+  random_value = 0;
+  for (int i = 0; i < 8; i++) {
+    random_value = (random_value << 8) | buffer[i];
+  }
+
+  return random_value;
+  // return random();
+}
+
+static int choose(int n) { return rand() % n; }
+
+static void randSpace() {
+  if (choose(2)) {
+    buf[bufPtr++] = ' ';
+  }
+}
+static void gen(char chr) {
+  tokenCnt++;
+  randSpace();
+  buf[bufPtr++] = chr;
+  buf[bufPtr] = '\0';
+}
+static void gen_num() {
+  tokenCnt++;
+  randSpace();
+  if (choose(2)) { // hex
+    const char *fmt = choose(2) ? "0X%lx" : "0x%lx";
+    bufPtr += sprintf(buf + bufPtr, fmt, rand64());
+  } else { // dec
+    bufPtr += sprintf(buf + bufPtr, "%lu", rand64());
+  }
+  buf[bufPtr++] = 'l';
+  buf[bufPtr++] = 'u';
+  buf[bufPtr] = '\0';
+}
+static void gen_rand_op() {
+#define AddRule(num, chr)                                                      \
+  case num:                                                                    \
+    gen(chr);                                                                  \
+    break;
+
+  switch (choose(4)) {
+    AddRule(0, '+');
+    AddRule(1, '-');
+    AddRule(2, '*');
+    AddRule(3, '/');
+  }
+}
+
 static void gen_rand_expr() {
-  buf[0] = '\0';
+  if (tokenCnt > 30) {
+    gen_num();
+    return;
+  }
+  switch (choose(3)) {
+  case 0:
+    gen_num();
+    break;
+  case 1:
+    gen('(');
+    gen_rand_expr();
+    gen(')');
+    break;
+  default:
+    gen_rand_expr();
+    gen_rand_op();
+    gen_rand_expr();
+    break;
+  }
 }
 
 int main(int argc, char *argv[]) {

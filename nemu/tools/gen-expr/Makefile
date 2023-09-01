@@ -15,4 +15,5 @@
 
 NAME = gen-expr
 SRCS = gen-expr.c
+LIBS = -lssl -lcrypto
 include $(NEMU_HOME)/scripts/build.mk
