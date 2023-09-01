@@ -1,9 +1,6 @@
 #include "common.h"
 #include "debug.h"
 #include "sdb.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 /*
 expr    : ande || ande
 
@@ -33,7 +30,7 @@ prim    : ( expr )
 
 static int curPtr = 0;
 static const char *foundStr = NULL;
-static uint16_t foundOp = 0;
+static uint8_t foundOp = 0;
 #define UHEX_WORD "%" MUXDEF(CONFIG_ISA64, PRIx64, PRIx32)
 #define UDEC_WORD "%" MUXDEF(CONFIG_ISA64, PRIu64, PRIu32)
 
@@ -72,7 +69,7 @@ void showNode(DAGnode *node) {
   }
 }
 
-bool findFirst(uint16_t *syn) {
+bool findFirst(uint8_t *syn) {
   int i = 0;
   while (syn[i]) {
     if (tokens[curPtr].type == syn[i]) {
@@ -85,7 +82,7 @@ bool findFirst(uint16_t *syn) {
   }
   return false;
 }
-bool consume(uint16_t synType) {
+bool consume(uint8_t synType) {
   bool res = false;
   if (tokens[curPtr].type == synType) {
     curPtr++;
@@ -106,7 +103,7 @@ DAGnode *prim();
   left = res = nextTerm();                                                     \
   if (left == NULL)                                                            \
     return NULL;                                                               \
-  uint16_t list[] = {__VA_ARGS__, 0};                                          \
+  uint8_t list[] = {__VA_ARGS__, 0};                                           \
   while (findFirst(list)) {                                                    \
     res = (DAGnode *)malloc(sizeof(DAGnode));                                  \
     res->str = dstrcpy(foundStr);                                              \
@@ -122,20 +119,20 @@ DAGnode *prim();
 DAGnode *orep() { BinaryMode(ande, TK_OR); }
 DAGnode *ande() { BinaryMode(comp, TK_AND); }
 DAGnode *comp() { BinaryMode(term, TK_GT, TK_LT, TK_GE, TK_LE, TK_EQ, TK_NE); }
-DAGnode *term() { BinaryMode(fact, '+', '-'); }
-DAGnode *fact() { BinaryMode(unar, '*', '/'); }
+DAGnode *term() { BinaryMode(fact, TK_ADD, TK_SUB); }
+DAGnode *fact() { BinaryMode(unar, TK_MUL, TK_DIV); }
 DAGnode *unar() {
   DAGnode *res = NULL;
-  uint16_t target[] = {'-', '*', '!', 0};
+  uint8_t target[] = {TK_SUB, TK_MUL, TK_NOT, 0};
   if (findFirst(target)) {
     res = (DAGnode *)malloc(sizeof(DAGnode));
     res->str = dstrcpy(foundStr);
-    if (foundOp == '-') {
+    if (foundOp == TK_SUB) {
       res->synType = TK_MINUS;
-    } else if (foundOp == '*') {
+    } else if (foundOp == TK_MUL) {
       res->synType = TK_DEREF;
     } else {
-      Assert(foundOp == '!', "Unexpected unary op %d", foundOp);
+      Assert(foundOp == TK_NOT, "Unexpected unary op %d", foundOp);
     }
     res->left = unar();
     if (res->left == NULL)
@@ -150,10 +147,10 @@ DAGnode *unar() {
 
 DAGnode *prim() {
   DAGnode *res = NULL;
-  uint16_t list[] = {'(', 0};
+  uint8_t list[] = {TK_LP, 0};
   if (findFirst(list)) {
     res = orep();
-    if (!consume(')')) {
+    if (!consume(TK_RP)) {
       Assert(false, "not match \")\"");
       return NULL;
     }
@@ -232,16 +229,16 @@ bool evalDAG(DAGnode *node) {
       node->isImm &= node->right->isImm;
     }
     switch (node->synType) {
-    case '+':
+    case TK_ADD:
       node->var = left + right;
       break;
-    case '-':
+    case TK_SUB:
       node->var = left - right;
       break;
-    case '*':
+    case TK_MUL:
       node->var = left * right;
       break;
-    case '/':
+    case TK_DIV:
       node->var = left / right;
       break;
     case TK_AND:
@@ -250,7 +247,7 @@ bool evalDAG(DAGnode *node) {
     case TK_OR:
       node->var = left | right;
       break;
-    case '!':
+    case TK_NOT:
       node->var = ~left;
       break;
     case TK_DEREF:
