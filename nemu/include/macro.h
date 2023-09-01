@@ -92,6 +92,42 @@
 
 #define PG_ALIGN __attribute((aligned(4096)))
 
+#define S_DECLARE(sname, type, num)                                            \
+  typedef struct {                                                             \
+    type data[num];                                                            \
+    uint32_t ptr;                                                              \
+  } sname;                                                                     \
+  type sname##Pop(sname stack) {                                               \
+    type res = S_TOP(stack);                                                   \
+    S_POP(stack);                                                              \
+    return res;                                                                \
+  }
+
+#define S_CLEAR(stack) stack.ptr = 0;
+#define S_EMPTY(stack) (stack.ptr == 0)
+
+#define S_PUSH(stack, element)                                                 \
+  do {                                                                         \
+    stack.data[stack.ptr++] = element;                                         \
+  } while (0)
+
+#define S_POP(stack)                                                           \
+  do {                                                                         \
+    stack.ptr--;                                                               \
+  } while (0)
+
+#define S_REVERSE(type, stack)                                                 \
+  do {                                                                         \
+    type old = stack;                                                          \
+    S_CLEAR(stack);                                                            \
+    while (!S_EMPTY(old)) {                                                    \
+      S_PUSH(stack, S_TOP(old));                                               \
+      S_POP(old);                                                              \
+    }                                                                          \
+  } while (0)
+
+#define S_TOP(stack) stack.data[stack.ptr]
+
 #if !defined(likely)
 #define likely(cond)   __builtin_expect(cond, 1)
 #define unlikely(cond) __builtin_expect(cond, 0)
