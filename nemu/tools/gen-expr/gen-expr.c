@@ -13,23 +13,25 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
+#include "openssl/types.h"
+#include <assert.h>
+#include <openssl/rand.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include <assert.h>
 #include <string.h>
+#include <time.h>
 
 // this should be enough
 static char buf[65536] = {};
 static char code_buf[65536 + 128] = {}; // a little larger than `buf`
-static char *code_format =
-"#include <stdio.h>\n"
-"int main() { "
-"  unsigned result = %s; "
-"  printf(\"%%u\", result); "
-"  return 0; "
-"}";
+static char *code_format = "#include <stdio.h>\n"
+                           "#include <stdint.h>\n"
+                           "int main() { "
+                           "  uint64_t result = 0lu + %s; "
+                           "  printf(\"%%lu\", result); "
+                           "  return 0; "
+                           "}";
 
 static size_t bufPtr = 0;
 static size_t tokenCnt = 0;
@@ -113,6 +115,19 @@ static void gen_rand_expr() {
   }
 }
 
+void removelu(char *buf) {
+  int ptr = 0;
+  int len = strlen(buf);
+  while (buf[ptr]) {
+    if ((buf[ptr] == 'l') && (buf[ptr + 1] == 'u')) {
+      for (int i = ptr; i < len - 1; i++) {
+        buf[i] = buf[i + 2];
+      }
+    }
+    ptr++;
+  }
+}
+
 int main(int argc, char *argv[]) {
   int seed = time(0);
   srand(seed);
@@ -120,9 +135,13 @@ int main(int argc, char *argv[]) {
   if (argc > 1) {
     sscanf(argv[1], "%d", &loop);
   }
-  int i;
-  for (i = 0; i < loop; i ++) {
+  int i = 0;
+  do {
+    bufPtr = 0;
+    tokenCnt = 0;
     gen_rand_expr();
+    if (tokenCnt > 32)
+      continue;
 
     sprintf(code_buf, code_format, buf);
 
@@ -131,8 +150,9 @@ int main(int argc, char *argv[]) {
     fputs(code_buf, fp);
     fclose(fp);
 
-    int ret = system("gcc /tmp/.code.c -o /tmp/.expr");
-    if (ret != 0) continue;
+    int ret = system("gcc -Werror /tmp/.code.c -o /tmp/.expr");
+    if (ret != 0)
+      continue;
 
     fp = popen("/tmp/.expr", "r");
     assert(fp != NULL);
@@ -141,7 +161,9 @@ int main(int argc, char *argv[]) {
     ret = fscanf(fp, "%d", &result);
     pclose(fp);
 
+    removelu(buf);
     printf("%u %s\n", result, buf);
-  }
+    i++;
+  } while (i < loop);
   return 0;
 }
