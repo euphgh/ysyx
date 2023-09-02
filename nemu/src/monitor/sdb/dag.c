@@ -139,6 +139,7 @@ DAGnode *unar() {
     } else if (foundOp == TK_MUL) {
       res->synType = TK_DEREF;
     } else {
+      res->synType = TK_NOT;
       Assert(foundOp == TK_NOT, "Unexpected unary op %d", foundOp);
     }
     res->left = unar();
