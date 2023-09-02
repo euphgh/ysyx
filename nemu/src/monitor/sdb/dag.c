@@ -69,6 +69,8 @@ void showNode(DAGnode *node) {
 
 bool findFirst(uint8_t *syn) {
   int i = 0;
+  if (curPtr == nr_token)
+    return false;
   while (syn[i]) {
     if (tokens[curPtr].type == syn[i]) {
       foundStr = tokens[curPtr].str;
@@ -88,13 +90,18 @@ bool consume(uint8_t synType) {
   }
   return res;
 }
-DAGnode *orep();
-DAGnode *ande();
-DAGnode *comp();
-DAGnode *term();
-DAGnode *fact();
-DAGnode *unar();
-DAGnode *prim();
+static DAGnode *orep();
+static DAGnode *ande();
+static DAGnode *comp();
+static DAGnode *term();
+static DAGnode *fact();
+static DAGnode *unar();
+static DAGnode *prim();
+
+DAGnode *dagSyntax() {
+  curPtr = 0;
+  return orep();
+}
 
 #define BinaryMode(nextTerm, ...)                                              \
   DAGnode *res = NULL, *left = NULL;                                           \
@@ -168,6 +175,7 @@ DAGnode *prim() {
       Assert(false, "Unexpected %u type in prim", tokens[curPtr].type);
       return NULL;
     }
+    Assert(curPtr < nr_token, "no more tokens");
     curPtr++;
   }
   return res;

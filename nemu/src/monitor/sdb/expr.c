@@ -118,8 +118,8 @@ DAGnode *expr2dag(const char *e, bool *success) {
   DAGnode *res = NULL;
   *success = make_token(e);
   if (success) {
-    DAGnode *orep();
-    res = orep();
+    DAGnode *dagSyntax();
+    res = dagSyntax();
   }
   *success = res != NULL;
   return res;
