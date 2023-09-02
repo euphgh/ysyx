@@ -23,6 +23,7 @@
 // It will be expanded as "x86" or "mips32" ...
 typedef concat(__GUEST_ISA__, _CPU_state) CPU_state;
 typedef concat(__GUEST_ISA__, _ISADecodeInfo) ISADecodeInfo;
+typedef concat(__GUEST_ISA__, _Rcode) ISARcode;
 
 // monitor
 extern unsigned char isa_logo[];
@@ -31,7 +32,12 @@ void init_isa();
 // reg
 extern CPU_state cpu;
 void isa_reg_display();
-word_t isa_reg_str2val(const char *name, bool *success);
+/* return -1 for not match code */
+int isa_reg_str2code(const char *name);
+/* return null for not match code */
+const char *isa_reg_code2str(int rcode);
+bool isa_reg_code2val(int rcode, word_t *value);
+bool isa_reg_str2val(const char *name, word_t *value);
 
 // exec
 struct Decode;
