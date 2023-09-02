@@ -92,6 +92,6 @@ bool expr(const char *e, word_t *res);
 bool insertWP(const char *expr);
 void deleteWP(int deleted);
 void printInfoWP();
-bool chechWP();
+bool checkWP();
 
 #endif

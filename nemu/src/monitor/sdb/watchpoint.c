@@ -110,7 +110,7 @@ static void printErrorWP(int pos, word_t now, word_t old) {
   printf("New value = " FMT_WORD "," DEC_WORD "\n", now, now);
 }
 
-bool chechWP() {
+bool checkWP() {
   word_t nowValue;
   bool success = true;
   for (int i = 0; i < wpSize; i++) {
@@ -121,6 +121,7 @@ bool chechWP() {
       }
       i++;
     } else {
+      error("Fail to eval %s", exprStr[i]);
       success = false;
       break;
     }
