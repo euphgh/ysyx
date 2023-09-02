@@ -157,12 +157,12 @@ int main(int argc, char *argv[]) {
     fp = popen("/tmp/.expr", "r");
     assert(fp != NULL);
 
-    int result;
-    ret = fscanf(fp, "%d", &result);
+    uint64_t result;
+    ret = fscanf(fp, "%lu", &result);
     pclose(fp);
 
     removelu(buf);
-    printf("%u %s\n", result, buf);
+    printf("%lu %s\n", result, buf);
     i++;
   } while (i < loop);
   return 0;

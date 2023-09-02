@@ -130,25 +130,29 @@ bool evalRPN(rpn_t *rpn, word_t *res) {
   return success;
 }
 
-int main() {
-  const char *q = "1 + 2 * 3";
-  bool success = true;
-  word_t rpnAns;
+int main(int argc, char **argv) {
   void init_regex();
   init_regex();
-  DAGnode *old = expr2dag(q, &success);
-  success &= evalDAG(old);
-  printf("[old] %d: %s = %lu\n", success, q, old->var);
-  showDAG(old);
+  FILE *fp = fopen(argv[1], "r");
+  Assert(fp, "Can not open file %s", argv[1]);
 
-  rpn_t rpn = dag2rpn(old);
-  showRPN(&rpn);
-  if (evalRPN(&rpn, &rpnAns)) {
-    printf("[rpn] %d: %s = %lu\n", 1, q, rpnAns);
+  word_t ref, rpnAns;
+  char expr[65535];
+
+  while (fscanf(fp, "%lu %[^\n]", &ref, expr) == 2) {
+    bool success = true;
+    printf("%s = %lu\n", expr, ref);
+    DAGnode *dag = expr2dag(expr, &success);
+    success &= evalDAG(dag);
+    Assert(success && (dag->var == ref), "dag eval %d: %lu", success, dag->var);
+    printf("[dag] = %lu\n", dag->var);
+
+    rpn_t rpn = dag2rpn(dag);
+    success &= evalRPN(&rpn, &rpnAns);
+    Assert(success && rpnAns == ref, "rpn eval %d: %lu", success, rpnAns);
+    printf("[rpn] = %lu\n", rpnAns);
+
+    deleteDAG(dag);
   }
-
-  printf("free old\n");
-  deleteDAG(old);
-
   return 0;
 }
