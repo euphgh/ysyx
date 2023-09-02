@@ -74,6 +74,7 @@ static int cmd_info(char *args) {
       break;
     case 'r':
       isa_reg_display();
+      break;
     default:
       error("info not support %c", name[0]);
     }

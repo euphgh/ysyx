@@ -35,11 +35,11 @@ static struct rule {
 
     /* compare op */
     {"==", TK_EQ},
-    {"\\!=", TK_NE},
-    {"\\>=", TK_GE},
-    {"\\<=", TK_LE},
-    {"\\<", TK_LT},
-    {"\\>", TK_GT},
+    {"!=", TK_NE},
+    {">=", TK_GE},
+    {"<=", TK_LE},
+    {"<", TK_LT},
+    {">", TK_GT},
 
     {"\\(", TK_LP},        
     {"\\)", TK_RP},        
@@ -48,11 +48,11 @@ static struct rule {
 
     {"[1-9][0-9]*", TK_DEC},
     {"0[xX][0-9A-Fa-f]+", TK_HEX},
-    {"$[a-zA-Z0-9]", TK_REGS},
+    {"\\$[a-zA-Z0-9]+", TK_REGS},
 
     /* operator */
-    {"||", TK_OR},
-    {"&&", TK_AND},
+    {"\\|\\|", TK_OR},
+    {"\\&\\&", TK_AND},
     {"\\+", TK_ADD},
     {"-", TK_SUB},
     {"\\*", TK_MUL},
