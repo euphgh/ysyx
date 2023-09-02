@@ -1,3 +1,5 @@
+#include "isa.h"
+#include "memory/vaddr.h"
 #include "sdb.h"
 /*
 expr    : ande || ande
@@ -174,6 +176,12 @@ DAGnode *prim() {
     } else if (tokens[curPtr].type != TK_REGS) {
       error("Unexpected %u type in prim", tokens[curPtr].type);
       return NULL;
+    } else {
+      res->var = isa_reg_str2code(res->str);
+      if (res->var < 0) {
+        error("Not found reg id \"%s\"", res->str);
+        return NULL;
+      }
     }
     Assert(curPtr < nr_token, "no more tokens");
     curPtr++;
@@ -265,8 +273,7 @@ bool evalDAG(DAGnode *node) {
     Assert(node->right == NULL, "Right not null but left null");
     node->isImm = true;
     if (node->synType == TK_REGS) {
-      printf("Reg[%s] = 0\n", node->str);
-      node->var = 0;
+      success = isa_reg_code2val(node->var, &node->var);
       node->isImm = false;
     }
   }

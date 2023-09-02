@@ -1,3 +1,5 @@
+#include "isa.h"
+#include "memory/vaddr.h"
 #include "sdb.h"
 
 void showNode(DAGnode *node);
@@ -49,18 +51,18 @@ static rpn_t newOpRPN(uint8_t op) {
   return rpn;
 }
 
-static rpn_t newImmRPN(word_t imm) {
+static rpn_t newImmRPN(DAGnode *node) {
   rpn_t rpn;
-  rpn.syn[0] = TK_HEX;
+  rpn.syn[0] = node->synType == TK_REGS ? TK_REGS : TK_HEX;
   rpn.syn[1] = 0;
-  rpn.src[0] = imm;
+  rpn.src[0] = node->var;
   return rpn;
 }
 
 rpn_t dag2rpn(DAGnode *node) {
   rpn_t rpn;
   if (node->left == NULL) {
-    rpn = newImmRPN(node->var);
+    rpn = newImmRPN(node);
   } else {
     rpn_t opRPN = newOpRPN(node->synType);
     rpn_t leftRPN = dag2rpn(node->left);
@@ -93,6 +95,13 @@ bool evalRPN(rpn_t *rpn, word_t *res) {
       S_PUSH(srcsStack, rpn->src[srcPtr]);
       srcPtr++;
       break;
+    case TK_REGS: {
+      word_t regValue;
+      success &= isa_reg_code2val(rpn->src[srcPtr], &regValue);
+      S_PUSH(srcsStack, regValue);
+      srcPtr++;
+      break;
+    }
     case TK_MINUS: {
       word_t minus = -WordStackPop(&srcsStack);
       S_PUSH(srcsStack, minus);

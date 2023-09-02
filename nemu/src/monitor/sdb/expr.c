@@ -57,11 +57,6 @@ static struct rule {
     {"-", TK_SUB},
     {"\\*", TK_MUL},
     {"\\/", TK_DIV},        
-    {"\\(", TK_LP},        
-    {"\\)", TK_RP},        
-    {"!", TK_NOT},        
-
-    {"==", TK_EQ},     // equal
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -135,7 +130,7 @@ bool expr2dag(const char *e, DAGnode **root) {
   if (make_token(e)) {
     DAGnode *dagSyntax();
     *root = dagSyntax();
-    success = true;
+    success = *root != NULL;
   }
   return success;
 }
