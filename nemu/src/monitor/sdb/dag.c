@@ -156,7 +156,7 @@ DAGnode *prim() {
   if (findFirst(list)) {
     res = orep();
     if (!consume(TK_RP)) {
-      Assert(false, "not match \")\"");
+      Assert(false, "Not match \")\"");
       return NULL;
     }
   } else {
@@ -217,41 +217,36 @@ void deleteDAG(DAGnode *node) {
   free(node);
 }
 
+#define BinaryCase(TK, op)                                                     \
+  case TK:                                                                     \
+    node->var = left op right;                                                 \
+    break
+
 bool evalDAG(DAGnode *node) {
   bool success = true;
   if (node->left) {
     word_t left, right = 0;
     success &= evalDAG(node->left);
-    if (!success)
-      return false;
     left = node->left->var;
     node->isImm = node->left;
     if (node->right) {
       success &= evalDAG(node->right);
-      if (!success)
-        return false;
       right = node->right->var;
       node->isImm &= node->right->isImm;
     }
     switch (node->synType) {
-    case TK_ADD:
-      node->var = left + right;
-      break;
-    case TK_SUB:
-      node->var = left - right;
-      break;
-    case TK_MUL:
-      node->var = left * right;
-      break;
-    case TK_DIV:
-      node->var = left / right;
-      break;
-    case TK_AND:
-      node->var = left & right;
-      break;
-    case TK_OR:
-      node->var = left | right;
-      break;
+      BinaryCase(TK_ADD, +);
+      BinaryCase(TK_SUB, -);
+      BinaryCase(TK_MUL, *);
+      BinaryCase(TK_DIV, /);
+      BinaryCase(TK_OR, |);
+      BinaryCase(TK_AND, &);
+      BinaryCase(TK_GE, >=);
+      BinaryCase(TK_LE, <=);
+      BinaryCase(TK_GT, >);
+      BinaryCase(TK_LT, <);
+      BinaryCase(TK_EQ, ==);
+      BinaryCase(TK_NE, !=);
     case TK_NOT:
       node->var = ~left;
       break;
@@ -259,7 +254,6 @@ bool evalDAG(DAGnode *node) {
       node->var = vaddr_read(left, 8);
       success &= vaddr_success();
       node->isImm = false;
-      node->var = 0;
       break;
     case TK_MINUS:
       node->var = -left;

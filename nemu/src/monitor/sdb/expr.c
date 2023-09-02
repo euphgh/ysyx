@@ -33,10 +33,26 @@ static struct rule {
 } rules[] = {
     {" +", TK_NOTYPE}, // spaces
 
+    /* compare op */
+    {"==", TK_EQ},
+    {"\\!=", TK_NE},
+    {"\\>=", TK_GE},
+    {"\\<=", TK_LE},
+    {"\\<", TK_LT},
+    {"\\>", TK_GT},
+
+    {"\\(", TK_LP},        
+    {"\\)", TK_RP},        
+
+    {"\\!", TK_NOT},        
+
     {"[1-9][0-9]*", TK_DEC},
     {"0[xX][0-9A-Fa-f]+", TK_HEX},
+    {"$[a-zA-Z0-9]", TK_REGS},
 
     /* operator */
+    {"||", TK_OR},
+    {"&&", TK_AND},
     {"\\+", TK_ADD},
     {"-", TK_SUB},
     {"\\*", TK_MUL},
