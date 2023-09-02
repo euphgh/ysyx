@@ -33,8 +33,8 @@ static struct rule {
 } rules[] = {
     {" +", TK_NOTYPE}, // spaces
 
-    {"[1-9]\\d*", TK_DEC},
-    {"0[xX][0-9A-Fa-f]+", TK_DEC},
+    {"[1-9][0-9]*", TK_DEC},
+    {"0[xX][0-9A-Fa-f]+", TK_HEX},
 
     /* operator */
     {"\\+", TK_ADD},
@@ -99,6 +99,7 @@ static bool make_token(const char *e) {
         /* assign tokens array */
         tokens[nr_token].type = thisType;
         strncpy(tokens[nr_token].str, substr_start, substr_len);
+        tokens[nr_token].str[substr_len] = '\0';
         nr_token++;
         break;
       }
