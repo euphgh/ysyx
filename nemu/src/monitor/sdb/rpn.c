@@ -104,8 +104,8 @@ bool evalRPN(rpn_t *rpn, word_t *res) {
       break;
     }
     case TK_DEREF: {
-      printf("Mem[" FMT_WORD "] = 0\n", WordStackPop(&srcsStack));
-      word_t loadVar = 0;
+      word_t loadVar = vaddr_read(WordStackPop(&srcsStack), 8);
+      success &= vaddr_success();
       S_PUSH(srcsStack, loadVar);
       break;
     }

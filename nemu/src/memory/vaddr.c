@@ -13,8 +13,11 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
+#include "memory/vaddr.h"
 #include <isa.h>
 #include <memory/paddr.h>
+
+bool vaddr_success() { return true; }
 
 word_t vaddr_ifetch(vaddr_t addr, int len) {
   return paddr_read(addr, len);

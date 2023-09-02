@@ -256,7 +256,8 @@ bool evalDAG(DAGnode *node) {
       node->var = ~left;
       break;
     case TK_DEREF:
-      printf("Mem[" FMT_WORD "] = 0\n", left);
+      node->var = vaddr_read(left, 8);
+      success &= vaddr_success();
       node->isImm = false;
       node->var = 0;
       break;
