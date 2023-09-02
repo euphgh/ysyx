@@ -19,14 +19,14 @@ static rpn_t mergeRPN(rpn_t left, rpn_t right) {
   findTopOfRPN(left, &leftSynPtr, &leftSrcPtr);
   findTopOfRPN(right, &rightSynPtr, &rightSrcPtr);
   Assert(leftSynPtr + rightSynPtr < 32, "rpn syn number > 31");
-  Assert(leftSrcPtr + rightSrcPtr <= 12, "rpn syn number > 12");
+  Assert(leftSrcPtr + rightSrcPtr <= 12, "rpn src number > 12");
   memcpy(left.syn + leftSynPtr, right.syn, rightSynPtr * sizeof(right.syn[0]));
   memcpy(left.src + leftSrcPtr, right.src, rightSrcPtr * sizeof(right.src[0]));
   left.syn[leftSynPtr + rightSynPtr] = 0;
   return left;
 }
 
-static void showRPN(rpn_t *rpn) {
+void showRPN(rpn_t *rpn) {
   int synPtr = 0;
   int srcPtr = 0;
   while (rpn->syn[synPtr] != 0) {
@@ -65,7 +65,7 @@ rpn_t dag2rpn(DAGnode *node) {
     rpn_t opRPN = newOpRPN(node->synType);
     rpn_t leftRPN = dag2rpn(node->left);
     if (node->right)
-      leftRPN = mergeRPN(leftRPN, dag2rpn(node->right));
+      leftRPN = mergeRPN(dag2rpn(node->right), leftRPN);
     rpn = mergeRPN(leftRPN, opRPN);
   }
   return rpn;
@@ -74,8 +74,9 @@ rpn_t dag2rpn(DAGnode *node) {
 S_DECLARE(WordStack, word_t, 12);
 #define BinaryMode(syn, op)                                                    \
   case syn: {                                                                  \
-    word_t tmp = WordStackPop(&srcsStack) op WordStackPop(&srcsStack);         \
-    S_PUSH(srcsStack, tmp);                                                    \
+    word_t src0 = WordStackPop(&srcsStack);                                    \
+    word_t src1 = WordStackPop(&srcsStack);                                    \
+    S_PUSH(srcsStack, src0 op src1);                                           \
     break;                                                                     \
   }
 
