@@ -172,7 +172,7 @@ DAGnode *prim() {
     if (fmt != NULL) {
       sscanf(res->str, fmt, &res->var);
     } else if (tokens[curPtr].type != TK_REGS) {
-      Assert(false, "Unexpected %u type in prim", tokens[curPtr].type);
+      error("Unexpected %u type in prim", tokens[curPtr].type);
       return NULL;
     }
     Assert(curPtr < nr_token, "no more tokens");

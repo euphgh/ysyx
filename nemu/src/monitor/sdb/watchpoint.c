@@ -44,7 +44,6 @@ static int findName(int pos) {
   return name;
 }
 
-#define error(str, ...) printf(ANSI_FMT(str, ANSI_FG_RED) "\n", ##__VA_ARGS__)
 bool insertWP(const char *expr) {
   bool success = true;
   int name = -1;

@@ -44,6 +44,8 @@ typedef word_t vaddr_t;
 typedef MUXDEF(PMEM64, uint64_t, uint32_t) paddr_t;
 #define FMT_PADDR MUXDEF(PMEM64, "0x%016" PRIx64, "0x%08" PRIx32)
 typedef uint16_t ioaddr_t;
+#define error(str, ...) printf(ANSI_FMT(str, ANSI_FG_RED) "\n", ##__VA_ARGS__)
+#define warn(str, ...) printf(ANSI_FMT(str, ANSI_FG_YELLOW) "\n", ##__VA_ARGS__)
 
 #include <debug.h>
 
