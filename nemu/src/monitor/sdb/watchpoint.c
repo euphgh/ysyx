@@ -17,27 +17,116 @@
 
 #define NR_WP 32
 
-typedef struct watchpoint {
-  int NO;
-  struct watchpoint *next;
+static int wpSize;
+static rpn_t rpns[NR_WP];
+static word_t oldValues[NR_WP];
+static char exprStr[128][NR_WP];
 
-  /* TODO: Add more members if necessary */
-
-} WP;
-
-static WP wp_pool[NR_WP] = {};
-static WP *head = NULL, *free_ = NULL;
+static int8_t numUse[NR_WP];
 
 void init_wp_pool() {
-  int i;
-  for (i = 0; i < NR_WP; i ++) {
-    wp_pool[i].NO = i;
-    wp_pool[i].next = (i == NR_WP - 1 ? NULL : &wp_pool[i + 1]);
+  wpSize = 0;
+  assert(NR_WP < 127);
+  for (int i = 0; i < NR_WP; i++) {
+    numUse[i] = -1;
+    oldValues[i] = 0;
   }
-
-  head = NULL;
-  free_ = wp_pool;
 }
 
-/* TODO: Implement the functionality of watchpoint */
+static int findName(int pos) {
+  int name = -1;
+  for (int i = 0; i < NR_WP; i++) {
+    if (numUse[i] == pos) {
+      name = i;
+      break;
+    }
+  }
+  return name;
+}
 
+#define error(str, ...) printf(ANSI_FMT(str, ANSI_FG_RED) "\n", ##__VA_ARGS__)
+bool insertWP(const char *expr) {
+  bool success = true;
+  int name = -1;
+  for (int i = 0; i < NR_WP; i++) {
+    if (numUse[i] == -1) {
+      numUse[i] = wpSize;
+      name = i;
+    }
+  }
+  if (name < 0) {
+    error("Fail to insert watchpoint for no space");
+    success = false;
+  } else {
+    DAGnode *dag = NULL;
+    if (expr2dag(expr, &dag)) {
+      DAGnode *sim = simplifyDAG(dag);
+      rpns[wpSize] = dag2rpn(sim);
+      deleteDAG(sim);
+      deleteDAG(dag);
+
+      strcpy(exprStr[wpSize], expr);
+      if (evalRPN(rpns + wpSize, oldValues + wpSize)) {
+        ++wpSize;
+      } else {
+        error("Fail to insert watchpoint for eval error");
+        success = false;
+      }
+    } else {
+      error("Fail to insert watchpoint for grammer error");
+      success = false;
+    }
+  }
+  return success;
+}
+
+void deleteWP(int deleted) {
+  if (numUse[deleted] != -1) {
+    for (int i = numUse[deleted]; i < wpSize; i++) {
+      rpns[i] = rpns[i + 1];
+      oldValues[i] = oldValues[i + 1];
+      strcpy(exprStr[i], exprStr[i + 1]);
+    }
+    numUse[deleted] = -1;
+    wpSize--;
+  } else {
+    error("Not Found watchpoint %d", deleted);
+  }
+}
+void printInfoWP() {
+  printf("Num Expr Hex Dec\n");
+  for (int i = 0; i < wpSize; i++) {
+    int name = findName(i);
+    Assert(name >= 0, "Not find watchpoints %d name", i);
+    printf("%d, %s, " FMT_WORD ", " DEC_WORD "\n", name, exprStr[i],
+           oldValues[i], oldValues[i]);
+  }
+}
+
+static void printErrorWP(int pos, word_t now, word_t old) {
+  int name = findName(pos);
+  Assert(name >= 0, "Not find watchpoints %d name", pos);
+  printf("watchpoint %d: %s\n", name, exprStr[pos]);
+  printf("Old value = " FMT_WORD "," DEC_WORD "\n", old, old);
+  printf("New value = " FMT_WORD "," DEC_WORD "\n", now, now);
+}
+
+bool chechWP() {
+  word_t nowValue;
+  bool success = true;
+  for (int i = 0; i < wpSize; i++) {
+    if (likely(evalRPN(rpns + i, &nowValue))) {
+      if (unlikely(nowValue != oldValues[i])) {
+        success = false;
+        printErrorWP(i, nowValue, oldValues[i]);
+      }
+      i++;
+    } else {
+      success = false;
+      break;
+    }
+  }
+  return success;
+}
+
+#undef NR_WP

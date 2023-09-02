@@ -73,8 +73,25 @@ typedef struct {
   word_t src[12];
 } rpn_t;
 
-DAGnode *expr2dag(const char *e, bool *success);
+/* DAG calls */
+bool expr2dag(const char *e, DAGnode **root);
+DAGnode *simplifyDAG(DAGnode *old);
+void deleteDAG(DAGnode *node);
+void showNode(DAGnode *node);
+void showDAG(DAGnode *node);
 bool evalDAG(DAGnode *root);
-word_t expr(const char *e, bool *success);
+
+/* RPN calls */
+void showRPN(rpn_t *rpn);
+rpn_t dag2rpn(DAGnode *node);
+bool evalRPN(rpn_t *rpn, word_t *res);
+
+bool expr(const char *e, word_t *res);
+
+/* watchpoint calls */
+bool insertWP(const char *expr);
+void deleteWP(int deleted);
+void printInfoWP();
+bool chechWP();
 
 #endif

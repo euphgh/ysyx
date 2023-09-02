@@ -67,7 +67,7 @@ void showNode(DAGnode *node) {
   }
 }
 
-bool findFirst(uint8_t *syn) {
+static bool findFirst(uint8_t *syn) {
   int i = 0;
   if (curPtr == nr_token)
     return false;
@@ -82,7 +82,7 @@ bool findFirst(uint8_t *syn) {
   }
   return false;
 }
-bool consume(uint8_t synType) {
+static bool consume(uint8_t synType) {
   bool res = false;
   if (tokens[curPtr].type == synType) {
     curPtr++;
