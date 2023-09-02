@@ -177,8 +177,9 @@ DAGnode *prim() {
       error("Unexpected %u type in prim", tokens[curPtr].type);
       return NULL;
     } else {
-      res->var = isa_reg_str2code(res->str);
-      if (res->var < 0) {
+      int rcode = isa_reg_str2code(res->str + 1);
+      res->var = rcode;
+      if (rcode < 0) {
         error("Not found reg id \"%s\"", res->str);
         return NULL;
       }
