@@ -84,19 +84,27 @@ static int cmd_info(char *args) {
 #define UHEX_WORD "%" MUXDEF(CONFIG_ISA64, PRIx64, PRIx32)
 static int cmd_x(char *args) {
   int size;
+  char buf[128];
   vaddr_t vaddr;
   if (args) {
-    if (sscanf(args, "%d " UHEX_WORD, &size, &vaddr) == 2)
-      for (int i = 0; i < ((size - 1) / 8) + 1; i++) {
-        for (int j = 0; j < 8; j++) {
-          word_t offset = i * 8 + j;
-          if (offset == size)
-            break;
-          uint8_t back = vaddr_read(vaddr + offset, 1);
-          printf("%02x ", back);
+    if (sscanf(args, "%d %[^\n]", &size, buf) == 2) {
+      if (expr(buf, &vaddr)) {
+        for (int i = 0; i < ((size - 1) / 8) + 1; i++) {
+          for (int j = 0; j < 8; j++) {
+            word_t offset = i * 8 + j;
+            if (offset == size)
+              break;
+            uint8_t back = vaddr_read(vaddr + offset, 1);
+            printf("%02x ", back);
+          }
+          printf("\n");
         }
-        printf("\n");
+      } else {
+        error("please check expr grammer");
       }
+    } else {
+      error("please check command grammer: x [size] [expr]");
+    }
   }
   return 0;
 };
