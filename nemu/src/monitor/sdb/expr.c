@@ -114,24 +114,25 @@ static bool make_token(const char *e) {
   return true;
 }
 
-DAGnode *expr2dag(const char *e, bool *success) {
-  DAGnode *res = NULL;
-  *success = make_token(e);
-  if (success) {
+bool expr2dag(const char *e, DAGnode **root) {
+  bool success = false;
+  if (make_token(e)) {
     DAGnode *dagSyntax();
-    res = dagSyntax();
+    *root = dagSyntax();
+    success = true;
   }
-  *success = res != NULL;
-  return res;
+  return success;
 }
 
-word_t expr(const char *e, bool *success) {
-  DAGnode *root = expr2dag(e, success);
-  if (success) {
-    *success = evalDAG(root);
-    return root->var;
+bool expr(const char *e, word_t *res) {
+  bool success = false;
+  DAGnode *root;
+  if (expr2dag(e, &root)) {
+    evalDAG(root);
+    *res = root->var;
+    success = true;
   }
-  return 0;
+  return success;
 }
 
 #undef NR_REGEX

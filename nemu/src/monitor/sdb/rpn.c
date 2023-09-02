@@ -131,6 +131,7 @@ bool evalRPN(rpn_t *rpn, word_t *res) {
   return success;
 }
 
+#ifdef MANUAL_MODE
 int main(int argc, char **argv) {
   void init_regex();
   init_regex();
@@ -143,7 +144,9 @@ int main(int argc, char **argv) {
   while (fscanf(fp, "%lu %[^\n]", &ref, expr) == 2) {
     bool success = true;
     printf("%s = %lu\n", expr, ref);
-    DAGnode *dag = expr2dag(expr, &success);
+    DAGnode *dag;
+    success &= expr2dag(expr, &dag);
+    Assert(success, "dag grammer error");
     success &= evalDAG(dag);
     Assert(success && (dag->var == ref), "dag eval %d: %lu", success, dag->var);
     printf("[dag] = %lu\n", dag->var);
@@ -157,3 +160,4 @@ int main(int argc, char **argv) {
   }
   return 0;
 }
+#endif

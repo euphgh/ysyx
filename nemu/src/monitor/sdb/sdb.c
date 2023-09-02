@@ -14,8 +14,9 @@
 ***************************************************************************************/
 
 #include "sdb.h"
-#include <cpu/cpu.h>
-#include <isa.h>
+#include "cpu/cpu.h"
+#include "isa.h"
+#include "memory/vaddr.h"
 #include <readline/history.h>
 #include <readline/readline.h>
 
@@ -53,18 +54,76 @@ static int cmd_x(char *args);
 static int cmd_p(char *args);
 static int cmd_w(char *args);
 static int cmd_d(char *args);
+static int cmd_help(char *args);
 
 static int cmd_si(char *args) {
-  char *stepStr = strtok(args, " ");
-  cpu_exec(stepStr ? atoi(stepStr) : 1);
+  char *stepStr = strtok(NULL, " ");
+  int steps = 1;
+  if (stepStr)
+    sscanf(stepStr, "%d", &steps);
+  cpu_exec(steps);
   return 0;
 }
 
-static int cmd_info(char *args) { return 0; }
-static int cmd_x(char *args) { return 0; };
-static int cmd_p(char *args) { return 0; };
-static int cmd_w(char *args) { return 0; };
-static int cmd_d(char *args) { return 0; };
+static int cmd_info(char *args) {
+  char *name = strtok(NULL, " ");
+  if (name) {
+    switch (name[0]) {
+    case 'w':
+      printInfoWP();
+      break;
+    case 'r':
+      isa_reg_display();
+    default:
+      printf("info not support %c", name[0]);
+    }
+  }
+  return 0;
+}
+
+#define UHEX_WORD "%" MUXDEF(CONFIG_ISA64, PRIx64, PRIx32)
+static int cmd_x(char *args) {
+  int size;
+  vaddr_t vaddr;
+  if (args) {
+    if (sscanf(args, "%d " UHEX_WORD, &size, &vaddr) == 2)
+      for (int i = 0; i < ((size - 1) / 8) + 1; i++) {
+        for (int j = 0; j < 8; j++) {
+          word_t offset = i * 8 + j;
+          if (offset == size)
+            break;
+          uint8_t back = vaddr_read(vaddr + offset, 1);
+          printf("%02x ", back);
+        }
+        printf("\n");
+      }
+  }
+  return 0;
+};
+
+static int cmd_p(char *args) {
+  word_t res;
+  if (expr(args, &res)) {
+    printf("Hex: " FMT_WORD "\tDec: " DEC_WORD "\n", res, res);
+  } else {
+    printf("Fail to eval, please check input grammer");
+  }
+  return 0;
+};
+
+static int cmd_w(char *args) {
+  if (insertWP(args))
+    printf("successfully add watchpoint\n");
+  return 0;
+};
+
+static int cmd_d(char *args) {
+  char *token = strtok(NULL, " ");
+  int deleted;
+  if (token && sscanf(token, "%d", &deleted))
+    deleteWP(deleted);
+  return 0;
+};
 
 static int cmd_q(char *args) {
   nemu_state.state = NEMU_QUIT;
