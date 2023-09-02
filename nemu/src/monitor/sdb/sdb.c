@@ -75,7 +75,7 @@ static int cmd_info(char *args) {
     case 'r':
       isa_reg_display();
     default:
-      printf("info not support %c", name[0]);
+      error("info not support %c", name[0]);
     }
   }
   return 0;
@@ -111,11 +111,8 @@ static int cmd_x(char *args) {
 
 static int cmd_p(char *args) {
   word_t res;
-  if (expr(args, &res)) {
+  if (expr(args, &res))
     printf("Hex: " FMT_WORD "\tDec: " DEC_WORD "\n", res, res);
-  } else {
-    printf("Fail to eval, please check input grammer");
-  }
   return 0;
 };
 
