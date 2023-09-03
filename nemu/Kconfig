@@ -152,7 +152,11 @@ config ITRACE_COND
   default "true"
 
 config WATCHPOINT
-  bool "Enable watchpoint and breakpoint"
+  bool "Enable watchpoint"
+  default n
+
+config BREAKPOINT
+  bool "Enable breakpoint"
   default n
 
 config DIFFTEST
