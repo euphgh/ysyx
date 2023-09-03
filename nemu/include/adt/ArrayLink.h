@@ -14,33 +14,34 @@
 #define AL_INIT                                                                \
   do {                                                                         \
     alPtr = 0;                                                                 \
-    for (int i = 0; i < AL_ARR_NR; i++)                                        \
-      alNumUse[i] = -1;                                                        \
+    for (int alTempIter = 0; alTempIter < AL_ARR_NR; alTempIter++)             \
+      alNumUse[alTempIter] = -1;                                               \
   } while (0)
 
 #define AL_POS2NUM(pos)                                                        \
   ({                                                                           \
-    int name = -1;                                                             \
-    for (int i = 0; i < AL_ARR_NR; i++) {                                      \
-      if (alNumUse[i] == pos) {                                                \
-        name = i;                                                              \
+    int alTmpName = -1;                                                        \
+    for (int alTempIter = 0; alTempIter < AL_ARR_NR; alTempIter++) {           \
+      if (alNumUse[alTempIter] == pos) {                                       \
+        alTmpName = alTempIter;                                                \
         break;                                                                 \
       }                                                                        \
     }                                                                          \
-    name;                                                                      \
+    alTmpName;                                                                 \
   })
 #define AL_NUM2POS(num) alNumUse[num]
 
 #define AL_ALLOC_NUM                                                           \
   ({                                                                           \
-    int name = -1;                                                             \
-    for (int i = 0; i < AL_ARR_NR; i++) {                                      \
-      if (alNumUse[i] == -1) {                                                 \
-        alNumUse[i] = alPtr;                                                   \
-        name = i;                                                              \
+    int alTmpName = -1;                                                        \
+    for (int alTempIter = 0; alTempIter < AL_ARR_NR; alTempIter++) {           \
+      if (alNumUse[alTempIter] == -1) {                                        \
+        alNumUse[alTempIter] = alPtr;                                          \
+        alTmpName = alTempIter;                                                \
+        break;                                                                 \
       }                                                                        \
     }                                                                          \
-    name;                                                                      \
+    alTmpName;                                                                 \
   })
 
 #define AL_FREE_NUM(num, it, move)                                             \
