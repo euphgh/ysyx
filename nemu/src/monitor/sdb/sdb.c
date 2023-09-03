@@ -53,6 +53,7 @@ static int cmd_info(char *args);
 static int cmd_x(char *args);
 static int cmd_p(char *args);
 static int cmd_w(char *args);
+static int cmd_b(char *args);
 static int cmd_d(char *args);
 static int cmd_help(char *args);
 
@@ -70,7 +71,10 @@ static int cmd_info(char *args) {
   if (name) {
     switch (name[0]) {
     case 'w':
-      printInfoWP();
+      showInfoWP();
+      break;
+    case 'b':
+      showInfoBP();
       break;
     case 'r':
       isa_reg_display();
@@ -123,11 +127,30 @@ static int cmd_w(char *args) {
   return 0;
 };
 
+static int cmd_b(char *args) {
+  if (insertBP(args))
+    printf("successfully add breakpoint\n");
+  return 0;
+}
+
 static int cmd_d(char *args) {
-  char *token = strtok(NULL, " ");
-  int deleted;
-  if (token && sscanf(token, "%d", &deleted))
-    deleteWP(deleted);
+  char *name = strtok(NULL, " ");
+  if (name) {
+    char *numStr = strtok(NULL, " ");
+    int num;
+    if (numStr && sscanf(numStr, "%d", &num)) {
+      switch (name[0]) {
+      case 'w':
+        deleteWP(num);
+        break;
+      case 'b':
+        deleteBP(num);
+        break;
+      default:
+        error("delete not support %c", name[0]);
+      }
+    }
+  }
   return 0;
 };
 
@@ -153,6 +176,7 @@ static struct {
     {"x", "Examine memory: x/FMT ADDRESS", cmd_x},
     {"p", "Print value of expression EXP", cmd_p},
     {"w", "Set a watchpoint for EXPRESSION", cmd_w},
+    {"b", "Set breakpoint at specified location", cmd_b},
     {"d", "Delete all or some breakpoints or watchpoints", cmd_d},
 };
 

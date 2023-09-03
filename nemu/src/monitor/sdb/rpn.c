@@ -1,3 +1,4 @@
+#include "adt/ArrayStack.h"
 #include "isa.h"
 #include "memory/vaddr.h"
 #include "sdb.h"
@@ -73,18 +74,18 @@ rpn_t dag2rpn(DAGnode *node) {
   return rpn;
 }
 
-S_DECLARE(WordStack, word_t, 12);
+AS_DECLARE(WordStack, word_t, 12);
 #define BinaryMode(syn, op)                                                    \
   case syn: {                                                                  \
-    word_t src0 = WordStackPop(&srcsStack);                                    \
-    word_t src1 = WordStackPop(&srcsStack);                                    \
-    S_PUSH(srcsStack, src0 op src1);                                           \
+    word_t src0 = AS_TOPOP(srcsStack);                                         \
+    word_t src1 = AS_TOPOP(srcsStack);                                         \
+    AS_PUSH(srcsStack, src0 op src1);                                          \
     break;                                                                     \
   }
 
 bool evalRPN(rpn_t *rpn, word_t *res) {
   WordStack srcsStack;
-  S_CLEAR(srcsStack);
+  AS_CLEAR(srcsStack);
   int srcPtr = 0;
   int synPtr = 0;
   bool success = true;
@@ -92,30 +93,30 @@ bool evalRPN(rpn_t *rpn, word_t *res) {
     uint8_t thisSyn = rpn->syn[synPtr];
     switch (thisSyn) {
     case TK_HEX:
-      S_PUSH(srcsStack, rpn->src[srcPtr]);
+      AS_PUSH(srcsStack, rpn->src[srcPtr]);
       srcPtr++;
       break;
     case TK_REGS: {
       word_t regValue;
       success &= isa_reg_code2val(rpn->src[srcPtr], &regValue);
-      S_PUSH(srcsStack, regValue);
+      AS_PUSH(srcsStack, regValue);
       srcPtr++;
       break;
     }
     case TK_MINUS: {
-      word_t minus = -WordStackPop(&srcsStack);
-      S_PUSH(srcsStack, minus);
+      word_t minus = -(AS_TOPOP(srcsStack));
+      AS_PUSH(srcsStack, minus);
       break;
     }
     case TK_NOT: {
-      word_t notVar = ~WordStackPop(&srcsStack);
-      S_PUSH(srcsStack, notVar);
+      word_t notVar = ~AS_TOPOP(srcsStack);
+      AS_PUSH(srcsStack, notVar);
       break;
     }
     case TK_DEREF: {
-      word_t loadVar = vaddr_read(WordStackPop(&srcsStack), 8);
+      word_t loadVar = vaddr_read(AS_TOPOP(srcsStack), 8);
       success &= vaddr_success();
-      S_PUSH(srcsStack, loadVar);
+      AS_PUSH(srcsStack, loadVar);
       break;
     }
       BinaryMode(TK_ADD, +);
@@ -134,7 +135,7 @@ bool evalRPN(rpn_t *rpn, word_t *res) {
     synPtr++;
   }
   if (success) {
-    *res = WordStackPop(&srcsStack);
+    *res = AS_TOPOP(srcsStack);
     Assert((srcsStack.ptr == 0), "RPN stack not empty when finish");
   }
   return success;

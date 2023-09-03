@@ -86,12 +86,19 @@ void showRPN(rpn_t *rpn);
 rpn_t dag2rpn(DAGnode *node);
 bool evalRPN(rpn_t *rpn, word_t *res);
 
+/* only eval once by dag */
 bool expr(const char *e, word_t *res);
 
 /* watchpoint calls */
 bool insertWP(const char *expr);
 void deleteWP(int deleted);
-void printInfoWP();
+void showInfoWP();
 bool checkWP();
+
+/* breakpoint calls */
+bool insertBP(const char *expr);
+void deleteBP(int deleted);
+void showInfoBP();
+bool checkBP();
 
 #endif

@@ -13,60 +13,36 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
+#include "adt/ArrayLink.h"
 #include "sdb.h"
 
-#define NR_WP 32
+#define AL_ARR_NR 16
+#define AL_ATTR(_)                                                             \
+  _(rpn_t, rpns)                                                               \
+  _(word_t, oldValues)                                                         \
+  _(char, exprStr[128])
 
-static int wpSize;
-static rpn_t rpns[NR_WP];
-static word_t oldValues[NR_WP];
-static char exprStr[128][NR_WP];
+AL_DECLARE(Attr)
 
-static int8_t numUse[NR_WP];
+void init_wp_pool() { AL_INIT; }
 
-void init_wp_pool() {
-  wpSize = 0;
-  assert(NR_WP < 127);
-  for (int i = 0; i < NR_WP; i++) {
-    numUse[i] = -1;
-    oldValues[i] = 0;
-  }
-}
-
-static int findName(int pos) {
-  int name = -1;
-  for (int i = 0; i < NR_WP; i++) {
-    if (numUse[i] == pos) {
-      name = i;
-      break;
-    }
-  }
-  return name;
-}
-
-bool insertWP(const char *expr) {
+bool insertWP(const char *e) {
   bool success = true;
-  int name = -1;
-  for (int i = 0; i < NR_WP; i++) {
-    if (numUse[i] == -1) {
-      numUse[i] = wpSize;
-      name = i;
-    }
-  }
-  if (name < 0) {
-    error("Fail to insert watchpoint for no space");
+  int num = AL_ALLOC_NUM;
+  if (num < 0) {
+    error("Fail to insert breakpoint for no space");
     success = false;
   } else {
     DAGnode *dag = NULL;
-    if (expr2dag(expr, &dag)) {
+    if (expr2dag(e, &dag)) {
       DAGnode *sim = simplifyDAG(dag);
-      rpns[wpSize] = dag2rpn(sim);
+      rpns[alPtr] = dag2rpn(sim);
       deleteDAG(sim);
       deleteDAG(dag);
 
-      strcpy(exprStr[wpSize], expr);
-      if (evalRPN(rpns + wpSize, oldValues + wpSize)) {
-        ++wpSize;
+      strcpy(exprStr[alPtr], e);
+      if (evalRPN(rpns + alPtr, oldValues + alPtr)) {
+        ++alPtr;
       } else {
         error("Fail to insert watchpoint for eval error");
         success = false;
@@ -79,31 +55,29 @@ bool insertWP(const char *expr) {
   return success;
 }
 
-void deleteWP(int deleted) {
-  if (numUse[deleted] != -1) {
-    for (int i = numUse[deleted]; i < wpSize; i++) {
+void deleteWP(int num) {
+  if (AL_NUM2POS(num) != -1) {
+    AL_FREE_NUM(num, i, {
       rpns[i] = rpns[i + 1];
       oldValues[i] = oldValues[i + 1];
       strcpy(exprStr[i], exprStr[i + 1]);
-    }
-    numUse[deleted] = -1;
-    wpSize--;
-  } else {
-    error("Not Found watchpoint %d", deleted);
-  }
-}
-void printInfoWP() {
-  printf("Num Expr Hex Dec\n");
-  for (int i = 0; i < wpSize; i++) {
-    int name = findName(i);
-    Assert(name >= 0, "Not find watchpoints %d name", i);
-    printf("%d, %s, " FMT_WORD ", " DEC_WORD "\n", name, exprStr[i],
-           oldValues[i], oldValues[i]);
-  }
+    });
+  } else
+    error("Not Found breakpoint %d", num);
 }
 
-static void printErrorWP(int pos, word_t now, word_t old) {
-  int name = findName(pos);
+void showInfoWP() {
+  printf("Num Expr Vaddr\n");
+  AL_FOREACH(i, {
+    int num = AL_POS2NUM(i);
+    Assert(num >= 0, "Not find breakpoint %d name", i);
+    printf("%d, %s, " FMT_WORD ", " DEC_WORD "\n", num, exprStr[i],
+           oldValues[i], oldValues[i]);
+  })
+}
+
+static void showDiffWP(int pos, word_t now, word_t old) {
+  int name = AL_POS2NUM(pos);
   Assert(name >= 0, "Not find watchpoints %d name", pos);
   printf("watchpoint %d: %s\n", name, exprStr[pos]);
   printf("Old value = " FMT_WORD "," DEC_WORD "\n", old, old);
@@ -113,20 +87,19 @@ static void printErrorWP(int pos, word_t now, word_t old) {
 bool checkWP() {
   word_t nowValue;
   bool success = true;
-  for (int i = 0; i < wpSize; i++) {
+  AL_FOREACH(i, {
     if (likely(evalRPN(rpns + i, &nowValue))) {
       if (unlikely(nowValue != oldValues[i])) {
         success = false;
-        printErrorWP(i, nowValue, oldValues[i]);
+        showDiffWP(i, nowValue, oldValues[i]);
       }
-      i++;
     } else {
-      error("Fail to eval %s", exprStr[i]);
+      error("Fail to eval watchpoint %s", exprStr[i]);
       success = false;
-      break;
     }
-  }
+  })
   return success;
 }
 
-#undef NR_WP
+#undef AL_ARR_NR
+#undef AL_ATTR
