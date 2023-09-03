@@ -141,12 +141,11 @@ bool evalRPN(rpn_t *rpn, word_t *res) {
   return success;
 }
 
-#ifdef MANUAL_MODE
-int main(int argc, char **argv) {
-  void init_regex();
-  init_regex();
-  FILE *fp = fopen(argv[1], "r");
-  Assert(fp, "Can not open file %s", argv[1]);
+int exprRandTest() {
+  const char *filename =
+      "/home/hgh/ysyx-workbench/nemu/tools/gen-expr/trace.txt";
+  FILE *fp = fopen(filename, "r");
+  Assert(fp, "Can not open file %s", filename);
 
   word_t ref, rpnAns;
   char expr[65535];
@@ -170,4 +169,3 @@ int main(int argc, char **argv) {
   }
   return 0;
 }
-#endif
