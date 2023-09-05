@@ -33,7 +33,7 @@ bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc) {
 }
 
 static void showErrorReg(const char *name, word_t ref, word_t dut) {
-#define FMT_REG "[%s] = " FMT_WORD ", " DEC_WORD
+#define FMT_REG "[%s] = " FMT_WORD ", " DEC_WORD "\n"
   bool error = ref != dut;
   const char *dutFmt = error ? ANSI_FMT(FMT_REG, ANSI_FG_RED) : FMT_REG;
   if (error) {
@@ -44,7 +44,7 @@ static void showErrorReg(const char *name, word_t ref, word_t dut) {
 }
 
 void isa_difftest_showError(CPU_state *ref_r, vaddr_t pc) {
-  error("Difftest cache Nemu error at PC = " FMT_WORD "\n", pc);
+  error("Difftest catch Nemu error at PC = " FMT_WORD, pc);
 #define LAMBDA(name, ref, dut) showErrorReg(name, ref, dut)
   FOREACH_REGS
 #undef LAMBDA
