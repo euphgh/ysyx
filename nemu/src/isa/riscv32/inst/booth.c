@@ -1,12 +1,18 @@
 #include "../local-include/InstrImpl.h"
+
+#define MUL_DATA_WIDTH 128
+typedef struct BigInt {
+  bool bits[MUL_DATA_WIDTH];
+} bint;
+
 #define HMUL_DATA_WIDTH (MUL_DATA_WIDTH >> 1)
-bint initBint() {
+static bint initBint() {
   bint bi;
   memset(bi.bits, 0, MUL_DATA_WIDTH);
   return bi;
 }
 
-bint sword2bint(sword_t in) {
+static bint sword2bint(sword_t in) {
   bint bi;
   for (int i = 0; i < HMUL_DATA_WIDTH; i++) {
     bi.bits[i] = in & 0x1;
@@ -18,7 +24,7 @@ bint sword2bint(sword_t in) {
   return bi;
 }
 
-bint word2bint(word_t in) {
+static bint word2bint(word_t in) {
   bint bi;
   for (int i = 0; i < HMUL_DATA_WIDTH; i++) {
     bi.bits[i] = in & 0x1;
@@ -30,7 +36,7 @@ bint word2bint(word_t in) {
   return bi;
 }
 
-word_t bint2word(bint bi, int msb, int lsb) {
+static word_t bint2word(bint bi, int msb, int lsb) {
   word_t in = 0;
   for (int i = msb; i >= lsb; i--) {
     in |= bi.bits[i];
@@ -86,7 +92,7 @@ void showBint(bint bi) {
   printf("\n");
 }
 
-bint mulBint(bint bsrc0, bint bsrc1) {
+static bint mulBint(bint bsrc0, bint bsrc1) {
   enum {
     rightShift,
     addSrcs0,
@@ -110,13 +116,56 @@ bint mulBint(bint bsrc0, bint bsrc1) {
   }
   return res;
 }
-#undef HMUL_DATA_WIDTH
 
-// int main() {
-//   for (int i = 0; i < 10000; i++) {
-//     word_t src0 = random();
-//     word_t src1 = random();
-//     bint res = mulBint(src0, src1);
-//     word_t dut = bint2word(res, MUL_DATA_WIDTH - 1, 32);
-//   }
-// }
+word_t rv64instr_mulh(sword_t src1, sword_t src2) {
+  return bint2word(mulBint(sword2bint(src1), sword2bint(src2)), 63, 32);
+}
+word_t rv64instr_mulhsu(sword_t src1, word_t src2) {
+  return bint2word(mulBint(sword2bint(src1), word2bint(src2)), 63, 32);
+}
+word_t rv64instr_mulhu(word_t src1, word_t src2) {
+  return bint2word(mulBint(word2bint(src1), word2bint(src2)), 63, 32);
+}
+
+#undef HMUL_DATA_WIDTH
+#undef MUL_DATA_WIDTH
+
+#define INT_TYPE(isSign, is64)                                                 \
+  MUXONE(is64, MUXONE(isSign, int64_t, uint64_t),                              \
+         MUXONE(isSign, int32_t, uint32_t))
+
+#define WORD_TYPE(isSign) MUXONE(isSign, sword_t, word_t)
+
+#define DIV_MAC(name, isSign, is64, op, zeroValue, overValue)                  \
+  WORD_TYPE(isSign)                                                            \
+  rv64instr_##name(WORD_TYPE(isSign) end, WORD_TYPE(isSign) sor) {             \
+    INT_TYPE(isSign, is64) res = zeroValue;                                    \
+    IFONE(isSign,                                                              \
+          if ((sor == -1) && (end == MUXDEF(is64, INT64_MAX, INT32_MAX)))      \
+              res = overValue);                                                \
+    IFONE(isSign, else) if (sor != 0) res = end op sor;                        \
+    return MUXONE(is64, res, SEXT(res, 32));                                   \
+  }
+
+#define SIGN 1
+#define UNSIGN 0
+
+#define IS64 1
+#define IS32 0
+
+DIV_MAC(div, SIGN, IS64, /, -1, INT64_MAX);
+DIV_MAC(divu, UNSIGN, IS64, /, -1, INT64_MAX);
+DIV_MAC(rem, SIGN, IS64, %, end, 0);
+DIV_MAC(remu, UNSIGN, IS64, %, end, 0);
+DIV_MAC(divw, SIGN, IS32, /, -1, INT32_MAX);
+DIV_MAC(divuw, UNSIGN, IS32, /, -1, INT32_MAX);
+DIV_MAC(remw, SIGN, IS32, %, end, 0);
+DIV_MAC(remuw, UNSIGN, IS32, %, end, 0);
+
+#undef SIGN
+#undef UNSIGN
+#undef IS64
+#undef IS32
+#undef INT_TYPE
+#undef WORD_TYPE
+#undef DIV_MAC
