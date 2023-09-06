@@ -48,12 +48,12 @@ static int outChrC(const char chr, out_t *outer, fmt_t *fmter) {
   panic("Not Implement");
 }
 
-int fmtprint(out_t *outer, const char *fmt, va_list ap) {
+int fmtnprint(out_t *outer, const char *fmt, va_list ap) {
   fmt_t fmter;
   int cnt = 0;
   while (*fmt) {
     if (*fmt == '%') {
-      parseFmt(++fmt, &fmter);
+      fmt = parseFmt(++fmt, &fmter);
       switch (fmter.conSpec) {
       case X_HEX:
         cnt += outHexX(va_arg(ap, uint64_t), outer, &fmter);

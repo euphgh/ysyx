@@ -8,6 +8,6 @@ typedef struct {
   int ptr;
   int limit;
 } out_t;
-int fmtprint(out_t *outer, const char *fmt, va_list ap);
+int fmtnprint(out_t *outer, const char *fmt, va_list ap);
 
 #endif

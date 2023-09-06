@@ -12,6 +12,6 @@ typedef struct {
   bool blankPos;
   bool forceSign;
 } fmt_t;
-void parseFmt(const char *fmt, fmt_t *fmter);
+const char *parseFmt(const char *fmt, fmt_t *fmter);
 
 #endif

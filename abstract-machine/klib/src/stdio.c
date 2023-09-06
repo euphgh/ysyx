@@ -15,7 +15,7 @@ int printf(const char *fmt, ...) {
       .start = NULL,
       .type = ter,
   };
-  int res = fmtprint(&outer, fmt, ap);
+  int res = fmtnprint(&outer, fmt, ap);
   return res;
 }
 
@@ -46,7 +46,7 @@ int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
       .start = out,
       .type = str,
   };
-  return fmtprint(&outer, fmt, ap);
+  return fmtnprint(&outer, fmt, ap);
 }
 
 #endif
