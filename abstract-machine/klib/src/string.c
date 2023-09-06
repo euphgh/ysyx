@@ -11,12 +11,14 @@ size_t strlen(const char *s) {
 }
 
 char *strcpy(char *dst, const char *src) {
+  char *res = dst;
   while (*src != 0) {
     *dst = *src;
     dst++;
     src++;
   };
-  return dst;
+  *dst = 0;
+  return res;
 }
 
 char *strncpy(char *dst, const char *src, size_t n) {
@@ -29,12 +31,13 @@ char *strncpy(char *dst, const char *src, size_t n) {
 }
 
 char *strcat(char *dst, const char *src) {
-  /* may not !!!*/
-  return strcpy(dst + strlen(dst), src);
+  char *s = dst;
+  strcpy(s + strlen(s), src);
+  return dst;
 }
 
 int strcmp(const char *s1, const char *s2) {
-  while ((*s1 != *s2) && *s2 && *s1) {
+  while ((*s1 == *s2) && *s2 && *s1) {
     s1++;
     s2++;
   }
@@ -86,11 +89,11 @@ void *memcpy(void *out, const void *in, size_t n) {
 
 int memcmp(const void *s1, const void *s2, size_t n) {
   const unsigned char *l = s1, *r = s2;
-  while (*l != *r && n--) {
+  while (*l == *r && n--) {
     l++;
     r++;
   }
-  return *(l--) - *(r--);
+  return *(l - 1) - *(r - 1);
 }
 
 #endif
