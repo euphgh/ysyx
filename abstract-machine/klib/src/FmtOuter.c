@@ -26,7 +26,7 @@ static int outDecD(int64_t var, out_t *outer, fmt_t *fmter) {
   int len = 0;
   char buf[24];
   while (var != 0) {
-    *buf = var % 10;
+    buf[len] = var % 10 + '0';
     var /= 10;
     len++;
   }
