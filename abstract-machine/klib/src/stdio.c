@@ -20,7 +20,7 @@ int printf(const char *fmt, ...) {
 }
 
 int vsprintf(char *out, const char *fmt, va_list ap) {
-  return vsnprintf(out, SIZE_MAX, fmt, ap);
+  return vsnprintf(out, INT_MAX, fmt, ap);
 }
 
 int sprintf(char *out, const char *fmt, ...) {
