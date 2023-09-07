@@ -156,5 +156,12 @@ static int decode_exec(Decode *s) {
 
 int isa_exec_once(Decode *s) {
   s->isa.inst.val = inst_fetch(&s->snpc, 4);
+#ifdef CONFIG_ITRACE
+#ifndef CONFIG_ISA_loongarch32r
+  void itrace(uint64_t pc, uint8_t * code, int nbyte);
+  itrace(MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst.val,
+         4);
+#endif
+#endif
   return decode_exec(s);
 }
