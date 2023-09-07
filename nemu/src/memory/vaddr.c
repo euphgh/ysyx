@@ -13,20 +13,27 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
-#include "memory/vaddr.h"
-#include <isa.h>
+#include <memory/vaddr.h>
 #include <memory/paddr.h>
 
+extern const char *mtraceVname;
+extern vaddr_t mtraceVaddr;
 bool vaddr_success() { return true; }
 
 word_t vaddr_ifetch(vaddr_t addr, int len) {
+  mtraceVaddr = addr;
+  mtraceVname = "Ifetch";
   return paddr_read(addr, len);
 }
 
 word_t vaddr_read(vaddr_t addr, int len) {
+  mtraceVaddr = addr;
+  mtraceVname = "Dread ";
   return paddr_read(addr, len);
 }
 
 void vaddr_write(vaddr_t addr, int len, word_t data) {
+  mtraceVaddr = addr;
+  mtraceVname = "Dwrite";
   paddr_write(addr, len, data);
 }
