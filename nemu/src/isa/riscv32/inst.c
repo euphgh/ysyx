@@ -22,6 +22,26 @@
 #define R(i) gpr(i)
 #define Mr vaddr_read
 #define Mw vaddr_write
+#define rasJal()                                                               \
+  do {                                                                         \
+    if (*rd == 5 || *rd == 1)                                                  \
+      s->ras = RAS_CALL;                                                       \
+  } while (0)
+#define rasJalr()                                                              \
+  ({                                                                           \
+    int rs1 = BITS(s->isa.inst.val, 19, 15);                                   \
+    bool rdLink = (rd == 5) || (rd == 1);                                      \
+    bool rsLink = (rs1 == 5) || (rs1 == 1);                                    \
+    bool same = rd == rs1;                                                     \
+    if (rsLink) {                                                              \
+      if (rdLink)                                                              \
+        s->ras = same ? RAS_CALL : RAS_PP;                                     \
+      else                                                                     \
+        s->ras = RAS_RET;                                                      \
+    } else if (rdLink) {                                                       \
+      s->ras = RAS_CALL;                                                       \
+    }                                                                          \
+  })
 
 enum { // clang-format off
   TYPE_I, TYPE_U, TYPE_S, TYPE_R, TYPE_J, TYPE_B,
@@ -44,7 +64,7 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_
   switch (type) {
     case TYPE_I: src1R();          immI(); break;
     case TYPE_U:                   immU(); break;
-    case TYPE_J:                   immJ(); break;
+    case TYPE_J: rasJal();         immJ(); break;
     case TYPE_B: src1R(); src2R(); immB(); break;
     case TYPE_S: src1R(); src2R(); immS(); break;
     case TYPE_R: src1R(); src2R();         break;
@@ -92,7 +112,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("000000? ????? ????? 101 ????? 00100 11", srli   , I, R(rd) = src1 >> BITS(imm, 5, 0));
   INSTPAT("010000? ????? ????? 101 ????? 00100 11", srai   , I, R(rd) = (sword_t)src1 >> (sword_t)BITS(imm, 5, 0));
 
-  INSTPAT("??????? ????? ????? ??? ????? 11001 11", jalr   , I, R(rd) = s->snpc; s->dnpc = (src1 + imm) & ~0x1lu);
+  INSTPAT("??????? ????? ????? ??? ????? 11001 11", jalr   , I, R(rd) = s->snpc; s->dnpc = (src1 + imm) & ~0x1lu; rasJalr(););
 
   INSTPAT("??????? ????? ????? 000 ????? 00110 11", addiw  , I, R(rd) = SEXT((uint32_t)src1 + (uint32_t)imm, 32));
   INSTPAT("0000000 ????? ????? 001 ????? 00110 11", slliw  , I, R(rd) = SEXT((uint32_t)src1 << BITS(imm, 4, 0), 32));
@@ -156,6 +176,7 @@ static int decode_exec(Decode *s) {
 
 int isa_exec_once(Decode *s) {
   s->isa.inst.val = inst_fetch(&s->snpc, 4);
+  s->ras = RAS_NONE;
 #ifdef CONFIG_ITRACE
 #ifndef CONFIG_ISA_loongarch32r
   void itrace(uint64_t pc, uint8_t * code, int nbyte);
