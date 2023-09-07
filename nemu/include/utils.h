@@ -73,4 +73,7 @@ uint64_t get_time();
     IFNDEF(MANUAL_MODE, log_write(__VA_ARGS__));                               \
   } while (0)
 
+#define TRACE_MSG_LEN 128
+void traceFlush();
+void traceWrite(const char *fmt, ...);
 #endif

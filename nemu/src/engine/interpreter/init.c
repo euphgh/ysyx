@@ -13,6 +13,7 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
+#include "utils.h"
 #include <cpu/cpu.h>
 
 void sdb_mainloop();
@@ -23,5 +24,6 @@ void engine_start() {
 #else
   /* Receive commands from user. */
   sdb_mainloop();
+  traceFlush();
 #endif
 }
