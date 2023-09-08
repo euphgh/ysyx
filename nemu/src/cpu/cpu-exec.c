@@ -31,7 +31,6 @@ static uint64_t g_timer = 0; // unit: us
 static bool g_print_step = false;
 
 void device_update();
-void ftrace(Decode *s);
 
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 
@@ -41,7 +40,6 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
   IFDEF(CONFIG_WATCHPOINT, if (!checkWP()) nemu_state.state = NEMU_STOP);
   bool checkBP();
   IFDEF(CONFIG_BREAKPOINT, if (!checkBP()) nemu_state.state = NEMU_STOP);
-  ftrace(_this);
 }
 
 static void exec_once(Decode *s, vaddr_t pc) {
@@ -104,20 +102,5 @@ void cpu_exec(uint64_t n) {
           nemu_state.halt_pc);
       // fall through
     case NEMU_QUIT: statistic();
-  }
-}
-
-void ftrace(Decode *s) {
-  if (!(s->ras == RAS_NONE))
-      return;
-  void popFunc(uint64_t dst, uint64_t src);
-  void pushFunc(uint64_t vaddr);
-  if (s->ras == RAS_CALL)
-      pushFunc(s->dnpc);
-  else if (s->ras == RAS_RET)
-      popFunc(s->pc, s->dnpc);
-  else { // push and pop
-      popFunc(s->pc, s->dnpc);
-      pushFunc(s->dnpc);
   }
 }

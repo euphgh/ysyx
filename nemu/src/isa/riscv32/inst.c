@@ -22,10 +22,13 @@
 #define R(i) gpr(i)
 #define Mr vaddr_read
 #define Mw vaddr_write
+void ftrace(Decode *s);
 #define rasJal()                                                               \
   do {                                                                         \
-    if (*rd == 5 || *rd == 1)                                                  \
+    if (rd == 5 || rd == 1) {                                                  \
       s->ras = RAS_CALL;                                                       \
+      ftrace(s);                                                               \
+    }                                                                          \
   } while (0)
 #define rasJalr()                                                              \
   ({                                                                           \
@@ -41,6 +44,7 @@
     } else if (rdLink) {                                                       \
       s->ras = RAS_CALL;                                                       \
     }                                                                          \
+    ftrace(s);                                                                 \
   })
 
 enum { // clang-format off
@@ -64,7 +68,7 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_
   switch (type) {
     case TYPE_I: src1R();          immI(); break;
     case TYPE_U:                   immU(); break;
-    case TYPE_J: rasJal();         immJ(); break;
+    case TYPE_J: immJ(); break;
     case TYPE_B: src1R(); src2R(); immB(); break;
     case TYPE_S: src1R(); src2R(); immS(); break;
     case TYPE_R: src1R(); src2R();         break;
@@ -162,7 +166,7 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu   , B, if (src1 >= src2) s->dnpc = cpu.pc + imm);
 
   /* J type */
-  INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = s->snpc; s->dnpc = cpu.pc + imm);
+  INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = s->snpc; s->dnpc = cpu.pc + imm; rasJal());
 
 
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
@@ -185,4 +189,21 @@ int isa_exec_once(Decode *s) {
 #endif
 #endif
   return decode_exec(s);
+}
+
+void ftrace(Decode *s) {
+  if (s->ras == RAS_NONE)
+      return;
+  extern uint64_t g_nr_guest_inst;
+  printf("[%lu][" FMT_WORD "]", g_nr_guest_inst, s->pc);
+  void popFunc(uint64_t dst, uint64_t src);
+  void pushFunc(uint64_t vaddr);
+  void popushFunc(vaddr_t dst, vaddr_t src);
+  if (s->ras == RAS_CALL)
+      pushFunc(s->dnpc);
+  else if (s->ras == RAS_RET)
+      popFunc(s->dnpc, s->pc);
+  else { // push and pop
+      popushFunc(s->dnpc, s->pc);
+  }
 }

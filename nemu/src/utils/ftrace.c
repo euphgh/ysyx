@@ -6,16 +6,16 @@
 #define FITEM_NR 1024
 
 typedef struct {
-  uint64_t len;
+  vaddr_t len;
   const char *name;
 } FuncInfo;
 static size_t fitemSize;
 
-static uint64_t funcBegin[FITEM_NR];
+static vaddr_t funcBegin[FITEM_NR];
 static FuncInfo funcInfos[FITEM_NR];
 void load_elf_info(const char *filename,
-                   void (*addEle)(uint64_t, uint64_t, const char *));
-void addItem(uint64_t start, uint64_t len, const char *name) {
+                   void (*addEle)(vaddr_t, vaddr_t, const char *));
+void addItem(vaddr_t start, vaddr_t len, const char *name) {
   int i = fitemSize++ - 1;
   assert(fitemSize < FITEM_NR);
   while (i >= 0 && funcBegin[i] > start) {
@@ -29,14 +29,14 @@ void addItem(uint64_t start, uint64_t len, const char *name) {
 }
 
 int compUInt64(const void *l, const void *r) {
-  const uint64_t *da = (const uint64_t *)l;
-  const uint64_t *db = (const uint64_t *)r;
+  const vaddr_t *da = (const vaddr_t *)l;
+  const vaddr_t *db = (const vaddr_t *)r;
   return (*da > *db) - (*da < *db);
 }
 
 void initFtrace(const char *elfName) { load_elf_info(elfName, addItem); }
 
-int searchByVaddr(uint64_t vaddr) {
+int searchByVaddr(vaddr_t vaddr) {
   int low = 0;
   int high = fitemSize - 1;
   int mid;
@@ -83,8 +83,9 @@ bool popStack(StackHead *head, int *value) {
 }
 
 static StackHead funcStack;
+// #define FSTACK_CHECK
 
-void pushFunc(uint64_t vaddr) {
+void pushFunc(vaddr_t vaddr) {
   int idx = searchByVaddr(vaddr);
   if (vaddr <= funcBegin[idx] + funcInfos[idx].len) {
     pushStack(&funcStack, idx);
@@ -94,26 +95,73 @@ void pushFunc(uint64_t vaddr) {
   }
 }
 
-void popFunc(uint64_t dst, uint64_t src) {
-  int idx = searchByVaddr(dst);
-  if (dst <= funcBegin[idx] + funcInfos[idx].len) {
-    int lastIdx;
-    if (popStack(&funcStack, &lastIdx)) {
-      if (SLIST_FIRST(&funcStack)) {
-        int topIdx = SLIST_FIRST(&funcStack)->value;
-        if (topIdx == idx)
-          printf("Pop func %s to %s\n", funcInfos[lastIdx].name,
-                 funcInfos[idx].name);
-        else
-          printf("Pop to func %s not same with push %s\n", funcInfos[idx].name,
-                 funcInfos[topIdx].name);
+#ifdef FSTACK_CHECK
+static const char *getFSname(int idx) {
+  return idx < 0 ? "Top" : funcInfos[idx].name;
+}
+#endif
+
+static const char *getPSname(int idx) {
+  return idx < 0 ? NULL : funcInfos[idx].name;
+}
+
+void popFunc(vaddr_t dst, vaddr_t src) {
+  int srcIdx = searchByVaddr(src);
+  int lastIdx;
+  if (popStack(&funcStack, &lastIdx)) {
+#ifdef FSTACK_CHECK
+    int dstIdx = searchByVaddr(dst);
+    int nextIdx = -1;
+    if (SLIST_FIRST(&funcStack) != NULL) {
+      nextIdx = SLIST_FIRST(&funcStack)->value;
+    }
+#endif
+    if (srcIdx != lastIdx) {
+#ifdef FSTACK_CHECK
+      if (nextIdx == dstIdx) {
+        warn("Pop from tail call %s diff with %s, to %s", getPSname(srcIdx),
+             funcInfos[lastIdx].name, getPSname(dstIdx));
       } else {
-        printf("Pop last func %s\n", funcInfos[idx].name);
+        error("src func %s diff with %s, dst func %s diff with %s",
+              getPSname(srcIdx), funcInfos[lastIdx].name, getPSname(dstIdx),
+              getFSname(nextIdx));
       }
+#else
+      warn("Pop from tail call func %s diff with %s", getPSname(srcIdx),
+           funcInfos[lastIdx].name);
+#endif
     } else {
-      printf("Pop empty\n");
+#ifdef FSTACK_CHECK
+      if (nextIdx == dstIdx) {
+        printf("Pop from func %s to %s\n", getPSname(srcIdx),
+               getPSname(dstIdx));
+      } else {
+        warn("Pop from %s to tail call %s diff with %s", getPSname(srcIdx),
+             getPSname(dstIdx), getFSname(nextIdx));
+      }
+#else
+      printf("Pop from func %s\n", getPSname(srcIdx));
+#endif
     }
   } else {
-    printf("Not Found match range\n");
+    error("FuncStack is empty, can not pop\n");
+  }
+}
+
+void popushFunc(vaddr_t dst, vaddr_t src) {
+  int srcIdx = searchByVaddr(src);
+  int dstIdx = searchByVaddr(dst);
+  int lastIdx;
+
+  if (popStack(&funcStack, &lastIdx)) {
+    if (srcIdx != lastIdx) {
+      warn("switch from tail call func %s diff with %s to %s",
+           getPSname(srcIdx), funcInfos[lastIdx].name, getPSname(dstIdx));
+    } else {
+      printf("switch from func %s to %s\n", getPSname(srcIdx),
+             getPSname(dstIdx));
+    }
+  } else {
+    error("FuncStack is empty, can not pop\n");
   }
 }
