@@ -1,9 +1,9 @@
 #include "common.h"
-#include <assert.h>
-#include <stdint.h>
 #include <sys/queue.h>
 
 #define FITEM_NR 1024
+#define FHOLE_CHECK
+#define FSTACK_CHECK
 
 typedef struct {
   vaddr_t len;
@@ -36,16 +36,16 @@ int compUInt64(const void *l, const void *r) {
 
 void initFtrace(const char *elfName) { load_elf_info(elfName, addItem); }
 
-int searchByVaddr(vaddr_t vaddr) {
+inline static int binarySearch(vaddr_t key, vaddr_t arr[]) {
   int low = 0;
   int high = fitemSize - 1;
   int mid;
 
   while (low <= high) {
     mid = (low + high) / 2;
-    if (funcBegin[mid] == vaddr) {
+    if (arr[mid] == key) {
       return mid;
-    } else if (funcBegin[mid] < vaddr) {
+    } else if (arr[mid] < key) {
       low = mid + 1;
     } else {
       high = mid - 1;
@@ -53,6 +53,18 @@ int searchByVaddr(vaddr_t vaddr) {
   }
 
   return high;
+}
+
+int searchByVaddr(vaddr_t vaddr) {
+  int res = binarySearch(vaddr, funcBegin);
+#ifdef FHOLE_CHECK
+  if (res > 0) {
+    if (vaddr > funcInfos[res].len + funcBegin[res]) {
+      res = -1;
+    }
+  }
+#endif
+  return res;
 }
 
 struct StackNode {
@@ -83,18 +95,6 @@ bool popStack(StackHead *head, int *value) {
 }
 
 static StackHead funcStack;
-// #define FSTACK_CHECK
-
-void pushFunc(vaddr_t vaddr) {
-  int idx = searchByVaddr(vaddr);
-  if (vaddr <= funcBegin[idx] + funcInfos[idx].len) {
-    pushStack(&funcStack, idx);
-    printf("Push func %s\n", funcInfos[idx].name);
-  } else {
-    printf("Not Found match range\n");
-  }
-}
-
 #ifdef FSTACK_CHECK
 static const char *getFSname(int idx) {
   return idx < 0 ? "Top" : funcInfos[idx].name;
@@ -103,6 +103,13 @@ static const char *getFSname(int idx) {
 
 static const char *getPSname(int idx) {
   return idx < 0 ? NULL : funcInfos[idx].name;
+}
+
+void pushFunc(vaddr_t vaddr) {
+  int idx = searchByVaddr(vaddr);
+  pushStack(&funcStack, idx);
+  traceWrite("[F] call %3d {%s@" FMT_WORD "}", stackDeep, getPSname(idx),
+             vaddr);
 }
 
 void popFunc(vaddr_t dst, vaddr_t src) {
@@ -119,28 +126,27 @@ void popFunc(vaddr_t dst, vaddr_t src) {
     if (srcIdx != lastIdx) {
 #ifdef FSTACK_CHECK
       if (nextIdx == dstIdx) {
-        warn("Pop from tail call %s diff with %s, to %s", getPSname(srcIdx),
-             funcInfos[lastIdx].name, getPSname(dstIdx));
+        traceWrite("[F] ret  %3d TailCall {%s} to {%s@" FMT_WORD "}", stackDeep,
+                   getPSname(srcIdx), getPSname(dstIdx), dst);
       } else {
         error("src func %s diff with %s, dst func %s diff with %s",
               getPSname(srcIdx), funcInfos[lastIdx].name, getPSname(dstIdx),
               getFSname(nextIdx));
       }
 #else
-      warn("Pop from tail call func %s diff with %s", getPSname(srcIdx),
-           funcInfos[lastIdx].name);
+      traceWrite("[F] ret  %3d TailCall {%s}", stackDeep, getPSname(srcIdx));
 #endif
     } else {
 #ifdef FSTACK_CHECK
       if (nextIdx == dstIdx) {
-        printf("Pop from func %s to %s\n", getPSname(srcIdx),
-               getPSname(dstIdx));
+        traceWrite("[F] ret  %3d {%s} to {%s@" FMT_WORD "}", stackDeep,
+                   getPSname(srcIdx), getPSname(dstIdx), dst);
       } else {
-        warn("Pop from %s to tail call %s diff with %s", getPSname(srcIdx),
-             getPSname(dstIdx), getFSname(nextIdx));
+        traceWrite("[F] ret  %3d {%s} to TailCall {%s@" FMT_WORD "}", stackDeep,
+                   getPSname(srcIdx), getPSname(dstIdx), dst);
       }
 #else
-      printf("Pop from func %s\n", getPSname(srcIdx));
+      traceWrite("[F] ret  %3d {%s}", stackDeep, getPSname(srcIdx));
 #endif
     }
   } else {
@@ -158,8 +164,7 @@ void popushFunc(vaddr_t dst, vaddr_t src) {
       warn("switch from tail call func %s diff with %s to %s",
            getPSname(srcIdx), funcInfos[lastIdx].name, getPSname(dstIdx));
     } else {
-      printf("switch from func %s to %s\n", getPSname(srcIdx),
-             getPSname(dstIdx));
+      warn("switch from func %s to %s\n", getPSname(srcIdx), getPSname(dstIdx));
     }
   } else {
     error("FuncStack is empty, can not pop\n");

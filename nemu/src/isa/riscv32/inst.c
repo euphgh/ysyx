@@ -22,12 +22,11 @@
 #define R(i) gpr(i)
 #define Mr vaddr_read
 #define Mw vaddr_write
-void ftrace(Decode *s);
+void ftrace(ras_t ras, vaddr_t dnpc, vaddr_t pc);
 #define rasJal()                                                               \
   do {                                                                         \
     if (rd == 5 || rd == 1) {                                                  \
-      s->ras = RAS_CALL;                                                       \
-      ftrace(s);                                                               \
+      ftrace(RAS_CALL, s->dnpc, s->pc);                                        \
     }                                                                          \
   } while (0)
 #define rasJalr()                                                              \
@@ -38,13 +37,12 @@ void ftrace(Decode *s);
     bool same = rd == rs1;                                                     \
     if (rsLink) {                                                              \
       if (rdLink)                                                              \
-        s->ras = same ? RAS_CALL : RAS_PP;                                     \
+        ftrace(same ? RAS_CALL : RAS_PP, s->dnpc, s->pc);                      \
       else                                                                     \
-        s->ras = RAS_RET;                                                      \
+        ftrace(RAS_RET, s->dnpc, s->pc);                                       \
     } else if (rdLink) {                                                       \
-      s->ras = RAS_CALL;                                                       \
+      ftrace(RAS_CALL, s->dnpc, s->pc);                                        \
     }                                                                          \
-    ftrace(s);                                                                 \
   })
 
 enum { // clang-format off
@@ -180,7 +178,6 @@ static int decode_exec(Decode *s) {
 
 int isa_exec_once(Decode *s) {
   s->isa.inst.val = inst_fetch(&s->snpc, 4);
-  s->ras = RAS_NONE;
 #ifdef CONFIG_ITRACE
 #ifndef CONFIG_ISA_loongarch32r
   void itrace(uint64_t pc, uint8_t * code, int nbyte);
@@ -191,19 +188,17 @@ int isa_exec_once(Decode *s) {
   return decode_exec(s);
 }
 
-void ftrace(Decode *s) {
-  if (s->ras == RAS_NONE)
+void ftrace(ras_t ras, vaddr_t dnpc, vaddr_t pc){
+  if (ras == RAS_NONE)
       return;
-  extern uint64_t g_nr_guest_inst;
-  printf("[%lu][" FMT_WORD "]", g_nr_guest_inst, s->pc);
-  void popFunc(uint64_t dst, uint64_t src);
-  void pushFunc(uint64_t vaddr);
-  void popushFunc(vaddr_t dst, vaddr_t src);
-  if (s->ras == RAS_CALL)
-      pushFunc(s->dnpc);
-  else if (s->ras == RAS_RET)
-      popFunc(s->dnpc, s->pc);
+  extern void popFunc(uint64_t dst, uint64_t src);
+  extern void pushFunc(uint64_t vaddr);
+  extern void popushFunc(vaddr_t dst, vaddr_t src);
+  if (ras == RAS_CALL)
+      pushFunc(dnpc);
+  else if (ras == RAS_RET)
+      popFunc(dnpc, pc);
   else { // push and pop
-      popushFunc(s->dnpc, s->pc);
+      popushFunc(dnpc, pc);
   }
 }
