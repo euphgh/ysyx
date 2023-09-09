@@ -139,7 +139,7 @@ config TRACE_START
 config TRACE_END
   depends on TRACE
   int "When tracing is disabled (unit: number of instructions)"
-  default 10000
+  default -1
 
 config ITRACE
   depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
@@ -150,6 +150,32 @@ config ITRACE_COND
   depends on ITRACE
   string "Only trace instructions when the condition is true"
   default "true"
+  help 
+    can use variable `pc`
+
+config MTRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable memory tracer"
+  default y
+
+config MTRACE_COND
+  depends on MTRACE
+  string "Only trace memory when the condition is true"
+  default "true"
+  help 
+    can use variable `addr`
+
+config FTRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable function tracer"
+  default y
+
+config FTRACE_COND
+  depends on FTRACE
+  string "Only trace function when the condition is true"
+  default "true"
+  help 
+    can use variable `dnpc`, `pc`
 
 config WATCHPOINT
   bool "Enable watchpoint"

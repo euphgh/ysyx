@@ -24,26 +24,28 @@
 #define Mw vaddr_write
 void ftrace(ras_t ras, vaddr_t dnpc, vaddr_t pc);
 #define rasJal()                                                               \
-  do {                                                                         \
-    if (rd == 5 || rd == 1) {                                                  \
-      ftrace(RAS_CALL, s->dnpc, s->pc);                                        \
-    }                                                                          \
-  } while (0)
+  IFDEF(                                                                       \
+      CONFIG_FTRACE, do {                                                      \
+        if (rd == 5 || rd == 1) {                                              \
+          ftrace(RAS_CALL, s->dnpc, s->pc);                                    \
+        }                                                                      \
+      } while (0))
 #define rasJalr()                                                              \
-  ({                                                                           \
-    int rs1 = BITS(s->isa.inst.val, 19, 15);                                   \
-    bool rdLink = (rd == 5) || (rd == 1);                                      \
-    bool rsLink = (rs1 == 5) || (rs1 == 1);                                    \
-    bool same = rd == rs1;                                                     \
-    if (rsLink) {                                                              \
-      if (rdLink)                                                              \
-        ftrace(same ? RAS_CALL : RAS_PP, s->dnpc, s->pc);                      \
-      else                                                                     \
-        ftrace(RAS_RET, s->dnpc, s->pc);                                       \
-    } else if (rdLink) {                                                       \
-      ftrace(RAS_CALL, s->dnpc, s->pc);                                        \
-    }                                                                          \
-  })
+  IFDEF(                                                                       \
+      CONFIG_FTRACE, do {                                                      \
+        int rs1 = BITS(s->isa.inst.val, 19, 15);                               \
+        bool rdLink = (rd == 5) || (rd == 1);                                  \
+        bool rsLink = (rs1 == 5) || (rs1 == 1);                                \
+        bool same = rd == rs1;                                                 \
+        if (rsLink) {                                                          \
+          if (rdLink)                                                          \
+            ftrace(same ? RAS_CALL : RAS_PP, s->dnpc, s->pc);                  \
+          else                                                                 \
+            ftrace(RAS_RET, s->dnpc, s->pc);                                   \
+        } else if (rdLink) {                                                   \
+          ftrace(RAS_CALL, s->dnpc, s->pc);                                    \
+        }                                                                      \
+      } while (0))
 
 enum { // clang-format off
   TYPE_I, TYPE_U, TYPE_S, TYPE_R, TYPE_J, TYPE_B,
