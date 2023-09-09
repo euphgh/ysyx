@@ -20,7 +20,12 @@ static void closeOuter(out_t *outer) {
 }
 
 static int outHexX(uint64_t var, out_t *outer, fmt_t *fmter) {
-  panic("Not Implement");
+  const char digs[] = "0123456789abcdef";
+  for (int i = 0; i < 16; i++) {
+    outOneChar(digs[var >> 60], outer);
+    var = var << 4;
+  }
+  return 16;
 }
 static int outDecD(int var, out_t *outer, fmt_t *fmter) {
   int len = 0;
@@ -46,7 +51,8 @@ static int outStrS(const char *str, out_t *outer, fmt_t *fmter) {
   return len;
 }
 static int outChrC(const char chr, out_t *outer, fmt_t *fmter) {
-  panic("Not Implement");
+  outOneChar(chr, outer);
+  return 1;
 }
 
 int fmtnprint(out_t *outer, const char *fmt, va_list ap) {
