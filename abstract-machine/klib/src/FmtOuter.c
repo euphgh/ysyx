@@ -22,14 +22,15 @@ static void closeOuter(out_t *outer) {
 static int outHexX(uint64_t var, out_t *outer, fmt_t *fmter) {
   panic("Not Implement");
 }
-static int outDecD(int64_t var, out_t *outer, fmt_t *fmter) {
+static int outDecD(int var, out_t *outer, fmt_t *fmter) {
   int len = 0;
   char buf[24];
-  while (var != 0) {
-    buf[len] = var % 10 + '0';
+  if (var < 0)
+    outOneChar('-', outer);
+  do {
+    buf[len++] = (var % 10) * (var < 0 ? -1 : 1) + '0';
     var /= 10;
-    len++;
-  }
+  } while (var);
   for (int i = 1; i <= len; i++) {
     outOneChar(buf[len - i], outer);
   }
@@ -59,7 +60,7 @@ int fmtnprint(out_t *outer, const char *fmt, va_list ap) {
         cnt += outHexX(va_arg(ap, uint64_t), outer, &fmter);
         break;
       case D_DEC:
-        cnt += outDecD(va_arg(ap, int64_t), outer, &fmter);
+        cnt += outDecD(va_arg(ap, int), outer, &fmter);
         break;
       case U_DEC:
         cnt += outDecU(va_arg(ap, uint64_t), outer, &fmter);
