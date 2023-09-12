@@ -14,6 +14,7 @@
 ***************************************************************************************/
 
 #include "local-include/InstrImpl.h"
+#include "local-include/csr.h"
 #include "local-include/reg.h"
 #include <cpu/cpu.h>
 #include <cpu/decode.h>
@@ -23,6 +24,8 @@
 #define Mr vaddr_read
 #define Mw vaddr_write
 void ftrace(ras_t ras, vaddr_t dnpc, vaddr_t pc);
+ExcCode ecallCode();
+static word_t eretInstr();
 #define rasJal()                                                               \
   IFDEF(                                                                       \
       CONFIG_FTRACE, do {                                                      \
@@ -169,6 +172,17 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = s->snpc; s->dnpc = cpu.pc + imm; rasJal());
 
 
+  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, s->dnpc = isa_raise_intr(ecallCode(), s->pc));
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", m/sret , N, s->dnpc = eretInstr());
+
+  INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I, csrRW(imm, &cpu.gpr[rd], src1, csrWAR));
+  INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I, csrRW(imm, &cpu.gpr[rd], src1, csrSET));
+  INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , I, csrRW(imm, &cpu.gpr[rd], src1, csrCLR));
+
+  INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I, csrRW(imm, &cpu.gpr[rd], BITS(s->isa.inst.val, 19, 15), csrWAR));
+  INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I, csrRW(imm, &cpu.gpr[rd], BITS(s->isa.inst.val, 19, 15), csrSET));
+  INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , I, csrRW(imm, &cpu.gpr[rd], BITS(s->isa.inst.val, 19, 15), csrCLR));
+
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
   INSTPAT_END();
@@ -203,4 +217,19 @@ void ftrace(ras_t ras, vaddr_t dnpc, vaddr_t pc){
   else { // push and pop
       popushFunc(dnpc, pc);
   }
+}
+
+inline ExcCode ecallCode() {
+  return machineMode == PRI_M   ? EC_EnvCallFromM
+         : machineMode == PRI_S ? EC_EnvCallFromS
+                                : EC_EnvCallFromU;
+}
+static word_t eretInstr() {
+  mstatus.mie = mstatus.mpie;
+  mstatus.mpie = true;
+
+  machineMode = mstatus.mpp;
+  mstatus.mpp = PRI_M;
+
+  return mepc.all;
 }

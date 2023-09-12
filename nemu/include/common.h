@@ -39,6 +39,7 @@ typedef MUXDEF(CONFIG_ISA64, uint64_t, uint32_t) word_t;
 typedef MUXDEF(CONFIG_ISA64, int64_t, int32_t)  sword_t;
 #define FMT_WORD MUXDEF(CONFIG_ISA64, "0x%016" PRIx64, "0x%08" PRIx32)
 #define DEC_WORD MUXDEF(CONFIG_ISA64, "%20" PRIu64, "0x%10" PRIu32)
+#define XLEN MUXDEF(CONFIG_ISA64, 64, 32)
 
 typedef word_t vaddr_t;
 typedef MUXDEF(PMEM64, uint64_t, uint32_t) paddr_t;

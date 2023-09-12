@@ -77,13 +77,14 @@ csrOpDefFmt = csrOpFunc + ";"
 csrOpImpFmt = (
     csrOpFunc
     + """{{
+    bool res = true;
     if (rd) *rd = {name:s}.val;
     switch (op) {{
         case csrSET: res = {name:s}Write({name:s}.val | src1); break;
         case csrCLR: res = {name:s}Write({name:s}.val & ~src1); break;
         case csrWAR: res = {name:s}Write(src1); break;
     }}
-    return res
+    return res;
 }}"""
 )
 
@@ -92,12 +93,11 @@ csrrwDefFmt = csrrwFunc + ";"
 csrrwImpFmt = (
     csrrwFunc
     + """{{
-    bool res;
+    bool res = false;
     switch (csrDst) {{
         {code:s}
-        default: res = false; break;
     }}
-    return res
+    return res;
 }}"""
 )
 
@@ -148,6 +148,9 @@ class CtrlStatReg:
         structList = [field.structDef() for field in self.fields]
         return headTypeDef.format(name=self.name, fields="\n".join(structList))
 
+    def genVarDef(self) -> str:
+        return srcVarDef.format(name=self.name)
+
     def genOpFuncDef(self) -> str:
         return csrOpDefFmt.format(name=self.name)
 
@@ -155,7 +158,7 @@ class CtrlStatReg:
         return csrOpImpFmt.format(name=self.name)
 
     def genRWcase(self) -> str:
-        return "case 0x{:x}: res = {:s}rw(rd, src1, op); break;".format(
+        return "case 0x{:x}: res = {:s}RW(rd, src1, op); break;".format(
             self.num, self.name
         )
 
@@ -164,6 +167,7 @@ class CtrlStatReg:
         static bool {csrName:s}Write(word_t val) {{
             {csrName:s}_t newVar = {{.val = val}};
             {code:s}
+            return true;
         }}"""
         writeLines = [field.writeLine(self.name) for field in self.fields]
         return csrWriteFmt.format(csrName=self.name, code="\n".join(writeLines))
@@ -189,6 +193,7 @@ class PaserCSR:
 
     def srcCode(self) -> str:
         code = []
+        code = code + [csr.genVarDef() for csr in self.allCSR]
         code = code + [csr.genPrivateWriteFunc() for csr in self.allCSR]
         code = code + [csr.genOpFuncImp() for csr in self.allCSR]
         caseCode = [csr.genRWcase() for csr in self.allCSR]

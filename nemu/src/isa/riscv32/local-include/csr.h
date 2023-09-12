@@ -35,5 +35,8 @@ typedef enum {
 
 #undef DEFEXC
 
+typedef enum { PRI_U = 0x0, PRI_S = 0x1, PRI_RSV = 0x2, PRI_M = 0x3 } Plevel;
+extern Plevel machineMode;
+
 #include "csrDefine.h"
 #endif
