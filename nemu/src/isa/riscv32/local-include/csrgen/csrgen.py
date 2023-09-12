@@ -1,7 +1,7 @@
 from enum import auto, Enum
-from pdb import set_trace
 
 WORD_LEN = 64
+
 
 class FieldSpec(Enum):
     READ = auto()
@@ -69,7 +69,7 @@ typedef union {{
     }};
     word_t val;
 }} {name:s}_t;
-extern"""
+extern """
     + srcVarDef
 )
 csrOpFunc = "bool {name:s}RW(word_t* rd, word_t src1, csrOp op)"
@@ -147,7 +147,6 @@ class CtrlStatReg:
     def genTypeDef(self) -> str:
         structList = [field.structDef() for field in self.fields]
         return headTypeDef.format(name=self.name, fields="\n".join(structList))
-        
 
     def genOpFuncDef(self) -> str:
         return csrOpDefFmt.format(name=self.name)
@@ -173,7 +172,7 @@ class CtrlStatReg:
         initValue = 0
         for field in self.fields:
             initValue = initValue | field.initValue()
-        return "{:s}.val = {:x};".format(self.name, initValue)
+        return "{:s}.val = 0x{:x};".format(self.name, initValue)
 
 
 class PaserCSR:
@@ -217,46 +216,3 @@ def FLD(*args, **kwargs) -> Field:
 
 def CSR(*args, **kwargs) -> CtrlStatReg:
     return CtrlStatReg(args[0], args[1], args[2])
-
-
-AllCRS = [
-    CSR(
-        "mtvec",
-        0x305,
-        [
-            FLD("base", WORD_LEN - 1, 2, "WARL"),
-            FLD("mode", 1, 0, "WARL"),
-        ],
-    ),
-    CSR(
-        "mepc",
-        0x341,
-        [
-            FLD("all", WORD_LEN - 1, 0, "WARL"),
-        ],
-    ),
-    CSR(
-        "mcause",
-        0x342,
-        [
-            FLD("interrupted", WORD_LEN - 1, WORD_LEN - 1, "READ"),
-            FLD("exceptionCode", WORD_LEN - 2, 0, "WLRL"),
-        ],
-    ),
-    CSR(
-        "mstatus",
-        0x300,
-        [
-            FLD("mie", 3, 3, "WARL"),
-            FLD("mpie", 7, 7, "WARL"),
-            FLD("mpp", 12, 11, "WARL"),
-        ],
-    ),
-]
-
-if __name__ == "__main__":
-    paser = PaserCSR(AllCRS)
-    print("// ======================= Head File ========================")
-    print(paser.headCode())
-    print("// ======================= src File ========================")
-    print(paser.srcCode())
