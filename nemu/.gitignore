@@ -8,5 +8,6 @@
 !.gitignore
 !README.md
 !Kconfig
+!*.py
 include/config
 include/generated
