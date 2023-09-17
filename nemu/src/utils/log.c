@@ -42,20 +42,6 @@ bool log_enable() {
          (g_nr_guest_inst <= CONFIG_TRACE_END), false);
 }
 
-#define BUFFER_SIZE 512
-#define RINGBUF_NR (BUFFER_SIZE * 1024 / TRACE_MSG_LEN)
-#define INC_PTR(it)                                                            \
-  ({                                                                           \
-    it = (it + 1) % RINGBUF_NR;                                                \
-    it;                                                                        \
-  })
-
-struct {
-  uint64_t tick;
-  vaddr_t pc;
-} marks[RINGBUF_NR];
-char msg[RINGBUF_NR][TRACE_MSG_LEN];
-
 #define logPC()                                                                \
   ({                                                                           \
     extern CPU_state cpu;                                                      \
@@ -67,6 +53,20 @@ char msg[RINGBUF_NR][TRACE_MSG_LEN];
     extern uint64_t g_nr_guest_inst;                                           \
     g_nr_guest_inst;                                                           \
   })
+
+#ifdef CONFIG_RINGBUF_ENABLE
+#define RINGBUF_NR (CONFIG_RINGBUF_SIZE * 1024 / TRACE_MSG_LEN)
+#define INC_PTR(it)                                                            \
+  ({                                                                           \
+    it = (it + 1) % RINGBUF_NR;                                                \
+    it;                                                                        \
+  })
+
+struct {
+  uint64_t tick;
+  vaddr_t pc;
+} marks[RINGBUF_NR];
+char msg[RINGBUF_NR][TRACE_MSG_LEN];
 
 void traceFlush() {
   log_fp = freopen(NULL, "w", log_fp);
@@ -97,3 +97,17 @@ void traceWrite(const char *fmt, ...) {
   if (unlikely(time(NULL) - lastWrite > 1))
     traceFlush();
 }
+#else
+
+void traceFlush() { fflush(log_fp); }
+
+void traceWrite(const char *fmt, ...) {
+  char msgBuf[TRACE_MSG_LEN];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(msgBuf, TRACE_MSG_LEN, fmt, ap);
+  va_end(ap);
+  fprintf(log_fp, "[%lu][" FMT_WORD "]%s\n", logTick(), logPC(), msgBuf);
+}
+
+#endif

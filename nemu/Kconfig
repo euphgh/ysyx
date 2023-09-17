@@ -131,6 +131,17 @@ config TRACE
   bool "Enable tracer"
   default y
 
+config RINGBUF_ENABLE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable ring buffer save log file"
+  default y
+
+config RINGBUF_SIZE
+  depends on RINGBUF_ENABLE
+  int "Set ring buffer size(KB)"
+  default 512
+
+
 config TRACE_START
   depends on TRACE
   int "When tracing is enabled (unit: number of instructions)"
