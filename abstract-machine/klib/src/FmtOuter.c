@@ -65,6 +65,9 @@ int fmtnprint(out_t *outer, const char *fmt, va_list ap) {
       case X_HEX:
         cnt += outHexX(va_arg(ap, uint64_t), outer, &fmter);
         break;
+      case P_PTR:
+        cnt += outHexX(va_arg(ap, uint64_t), outer, &fmter);
+        break;
       case D_DEC:
         cnt += outDecD(va_arg(ap, int), outer, &fmter);
         break;
