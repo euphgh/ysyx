@@ -32,6 +32,9 @@ static void restart() {
 
   /* The zero register is always 0. */
   cpu.gpr[0] = 0;
+
+  /* Init machine mode assign csr value */
+  isa_init_csr();
 }
 
 void init_isa() {

@@ -177,6 +177,11 @@ config FTRACE_COND
   help 
     can use variable `dnpc`, `pc`
 
+config ETRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable Exception tracer"
+  default n
+
 config WATCHPOINT
   bool "Enable watchpoint"
   default n

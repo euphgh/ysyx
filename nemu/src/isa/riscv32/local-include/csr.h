@@ -8,32 +8,35 @@ typedef enum {
   csrWAR,
 } csrOp;
 
-#define DEFEXC(int, exc) ((int << (XLEN - 1)) | exc)
+#define InterruptList(_)                                                       \
+  _(EC_SSoftInt, 1, "SSoftInt")                                                \
+  _(EC_MSoftInt, 3, "MSoftInt")                                                \
+  _(EC_STimeInt, 5, "STimeInt")                                                \
+  _(EC_MTimeInt, 7, "MTimeInt")                                                \
+  _(EC_SExternInt, 9, "SExternInt")                                            \
+  _(EC_MExternInt, 11, "MExternInt")
 
-typedef enum {
-  EC_SSoftInt = DEFEXC(1, 1),
-  EC_MSoftInt = DEFEXC(1, 3),
-  EC_STimeInt = DEFEXC(1, 5),
-  EC_MTimeInt = DEFEXC(1, 7),
-  EC_SExternInt = DEFEXC(1, 9),
-  EC_MExternInt = DEFEXC(1, 11),
-  EC_InstrAddrMisAlign = DEFEXC(0, 0),
-  EC_InstrAccessFault = DEFEXC(0, 1),
-  EC_IllegalInstr = DEFEXC(0, 2),
-  EC_BreakPoint = DEFEXC(0, 3),
-  EC_LoadAddrMisAlign = DEFEXC(0, 4),
-  EC_LoadAccessFault = DEFEXC(0, 5),
-  EC_StoreAddrMisAlign = DEFEXC(0, 6),
-  EC_StoreAccessFault = DEFEXC(0, 7),
-  EC_EnvCallFromU = DEFEXC(0, 8),
-  EC_EnvCallFromS = DEFEXC(0, 9),
-  EC_EnvCallFromM = DEFEXC(0, 11),
-  EC_InstrPageFault = DEFEXC(0, 12),
-  EC_LoadPageFault = DEFEXC(0, 13),
-  EC_StorePageFault = DEFEXC(0, 15),
-} ExcCode;
+#define ExceptionList(_)                                                       \
+  _(EC_InstrAddrMisAlign, 0, "InstrAddrMisAlign")                              \
+  _(EC_InstrAccessFault, 1, "InstrAccessFault")                                \
+  _(EC_IllegalInstr, 2, "IllegalInstr")                                        \
+  _(EC_BreakPoint, 3, "BreakPoint")                                            \
+  _(EC_LoadAddrMisAlign, 4, "LoadAddrMisAlign")                                \
+  _(EC_LoadAccessFault, 5, "LoadAccessFault")                                  \
+  _(EC_StoreAddrMisAlign, 6, "StoreAddrMisAlign")                              \
+  _(EC_StoreAccessFault, 7, "StoreAccessFault")                                \
+  _(EC_EnvCallFromU, 8, "EnvCallFromU")                                        \
+  _(EC_EnvCallFromS, 9, "EnvCallFromS")                                        \
+  _(EC_EnvCallFromM, 11, "EnvCallFromM")                                       \
+  _(EC_InstrPageFault, 12, "InstrPageFault")                                   \
+  _(EC_LoadPageFault, 13, "LoadPageFault")                                     \
+  _(EC_StorePageFault, 15, "StorePageFault")
 
-#undef DEFEXC
+#define IntEnumDef(name, code, str) name = ((1 << (XLEN - 1)) | code),
+#define ExpEnumDef(name, code, str) name = code,
+typedef enum { InterruptList(IntEnumDef) ExceptionList(ExpEnumDef) } ExcCode;
+#undef IntEnumDef
+#undef ExpEnumDef
 
 typedef enum { PRI_U = 0x0, PRI_S = 0x1, PRI_RSV = 0x2, PRI_M = 0x3 } Plevel;
 extern Plevel machineMode;

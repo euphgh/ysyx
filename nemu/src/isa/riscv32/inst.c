@@ -226,10 +226,13 @@ inline ExcCode ecallCode() {
 }
 static word_t eretInstr() {
   mstatus.mie = mstatus.mpie;
-  mstatus.mpie = true;
+  mstatus.mpie = false;
 
   machineMode = mstatus.mpp;
   mstatus.mpp = PRI_M;
 
-  return mepc.all;
+  vaddr_t backAddr = mepc.all;
+  IFDEF(CONFIG_ETRACE,
+        traceWrite("[E] eret to " FMT_WORD, backAddr));
+  return backAddr;
 }
