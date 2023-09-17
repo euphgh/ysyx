@@ -9,9 +9,10 @@
 
 struct Context {
   uintptr_t gpr[NR_REGS], mcause, mstatus, mepc;
+  void *pdir;
 };
 
-#define DEFEXC(int, exc) ((int << (64 - 1)) | exc)
+#define DEFEXC(int, exc) ((int##lu << (64 - 1)) | exc)
 
 typedef enum {
   EC_SSoftInt = DEFEXC(1, 1),
