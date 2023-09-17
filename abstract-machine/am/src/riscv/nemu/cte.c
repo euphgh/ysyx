@@ -10,6 +10,7 @@ Context* __am_irq_handle(Context *c) {
     switch (c->mcause) {
     case EC_EnvCallFromM:
       ev.event = EVENT_YIELD;
+      c->mepc = c->mepc + 4;
       break;
     default:
       ev.event = EVENT_ERROR;
