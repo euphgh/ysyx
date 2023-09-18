@@ -24,6 +24,13 @@ size_t serial_write(const void *buf, size_t offset, size_t len) {
   return len;
 }
 
+void uptimer_read(size_t *sec, size_t *us) {
+  AM_TIMER_UPTIME_T timer;
+  ioe_read(AM_TIMER_UPTIME, &timer);
+  *sec = timer.us / 1000000;
+  *us = timer.us % 1000000;
+}
+
 size_t events_read(void *buf, size_t offset, size_t len) {
   return 0;
 }
