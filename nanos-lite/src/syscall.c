@@ -2,15 +2,19 @@
 #include "fs.h"
 #include <common.h>
 #define SYSCALL_DEF_STR(name, str) [name] = str,
+#ifdef CONFIG_SFTRACE
 static const char *sysCallInfo[32] = {SYSCALL_LIST(SYSCALL_DEF_STR)};
+#endif
 #undef SYSCALL_DEF_STR
 extern const char *fs_pathname(int fd);
+extern void uptimer_read(size_t *sec, size_t *us);
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
   a[1] = c->GPR2;
   a[2] = c->GPR3;
   a[3] = c->GPR4;
+#ifdef CONFIG_SFTRACE
   if (a[0] == SYS_close || a[0] == SYS_read || a[0] == SYS_write ||
       a[0] == SYS_lseek || a[0] == SYS_open) {
     Log("%s[%s, %x(%u), %x(%u)]", sysCallInfo[a[0]], fs_pathname(a[1]), a[2],
@@ -19,6 +23,7 @@ void do_syscall(Context *c) {
     Log("%s[%x(%u), %x(%u), %x(%u)]", sysCallInfo[a[0]], a[1], a[1], a[2], a[2],
         a[3], a[3]);
   }
+#endif
   switch (a[0]) {
   case SYS_yield:
     c->GPRx = 0;
