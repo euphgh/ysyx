@@ -5,6 +5,7 @@
 #include <time.h>
 #include "syscall.h"
 
+#include <stdint.h>
 // helper macros
 #define _concat(x, y) x ## y
 #define concat(x, y) _concat(x, y)
@@ -66,12 +67,25 @@ int _open(const char *path, int flags, mode_t mode) {
 }
 
 int _write(int fd, void *buf, size_t count) {
-  _exit(SYS_write);
-  return 0;
+  return _syscall_(SYS_write, fd, (uintptr_t)buf, count);
 }
 
+extern char _end;
+static uintptr_t pbrk = 0;
+static int pbrkNotInit = 1;
+static char temp[32];
 void *_sbrk(intptr_t increment) {
-  return (void *)-1;
+  if (pbrkNotInit) {
+    pbrkNotInit = 0;
+    pbrk = (unsigned long)&_end;
+  }
+  if (_syscall_(SYS_brk, pbrk + increment, 0, 0) == 0) {
+    unsigned long lastpbrk = pbrk;
+    pbrk += increment;
+    return (void *)lastpbrk;
+  } else {
+    return (void *)-1;
+  }
 }
 
 int _read(int fd, void *buf, size_t count) {
