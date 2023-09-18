@@ -8,7 +8,7 @@ static const char *getSysCallStr(int num) {
   if (num > 0 && num < sizeof(sysCallInfo) / sizeof(sysCallInfo[0])) {
     return sysCallInfo[num];
   } else {
-    return NULL;
+    return "No Implement";
   }
 }
 #endif
