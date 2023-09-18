@@ -28,11 +28,7 @@ static uintptr_t simpleLoader() {
     if (phdr.p_type != PT_LOAD)
       continue;
 
-    printf("start va: %p\n", phdr.p_vaddr);
-    printf("start of: %p\n", phdr.p_offset);
-    printf("start fz: %p\n", phdr.p_filesz);
     ramdisk_read((void *)phdr.p_vaddr, phdr.p_offset, phdr.p_filesz);
-    printf("start da: %x\n", *(uint32_t *)phdr.p_vaddr);
     memset((void *)(phdr.p_vaddr + phdr.p_filesz), 0,
            phdr.p_memsz - phdr.p_filesz);
   }
