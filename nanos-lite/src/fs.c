@@ -83,4 +83,9 @@ size_t fs_lseek(int fd, size_t offset, int whence) {
   return res;
 }
 int fs_close(int fd) { return 0; }
-const char *fs_pathname(int fd) { return file_table[fd].name; }
+const char *fs_pathname(int fd) {
+  if ((fd >= 0) && (fd <= sizeof(file_table) / sizeof(file_table[0])))
+    return file_table[fd].name;
+  else
+    return "No File";
+}
