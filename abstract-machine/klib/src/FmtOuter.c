@@ -42,7 +42,16 @@ static int outDecD(int var, out_t *outer, fmt_t *fmter) {
   return len;
 }
 static int outDecU(uint64_t var, out_t *outer, fmt_t *fmter) {
-  panic("Not Implement");
+  int len = 0;
+  char buf[24];
+  do {
+    buf[len++] = (var % 10) * (var < 0 ? -1 : 1) + '0';
+    var /= 10;
+  } while (var);
+  for (int i = 1; i <= len; i++) {
+    outOneChar(buf[len - i], outer);
+  }
+  return len;
 }
 static int outStrS(const char *str, out_t *outer, fmt_t *fmter) {
   int len = strlen(str);
