@@ -32,7 +32,14 @@ void uptimer_read(size_t *sec, size_t *us) {
 }
 
 size_t events_read(void *buf, size_t offset, size_t len) {
-  return 0;
+  AM_INPUT_KEYBRD_T krd;
+  ioe_read(AM_INPUT_KEYBRD, &krd);
+  if (krd.keycode != AM_KEY_NONE) {
+    return snprintf(buf, len, krd.keydown ? "kd %s\n" : "ku %s\n",
+                    keyname[krd.keycode]);
+  } else {
+    return 0;
+  }
 }
 
 size_t dispinfo_read(void *buf, size_t offset, size_t len) {
