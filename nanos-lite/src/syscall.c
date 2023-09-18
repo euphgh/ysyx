@@ -3,13 +3,19 @@
 #define SYSCALL_DEF_STR(name, str) [name] = str,
 static const char *sysCallInfo[32] = {SYSCALL_LIST(SYSCALL_DEF_STR)};
 #undef SYSCALL_DEF_STR
+extern const char *fs_pathname(int fd);
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
   a[1] = c->GPR2;
   a[2] = c->GPR3;
   a[3] = c->GPR4;
-  Log("%s(%d, %d, %d)", sysCallInfo[a[0]], a[1], a[2], a[3]);
+  if (a[0] == SYS_close || a[0] == SYS_read || a[0] == SYS_write ||
+      a[0] == SYS_lseek || a[0] == SYS_open) {
+    Log("%s(%s, %d, %d)", sysCallInfo[a[0]], fs_pathname(a[1]), a[2], a[3]);
+  } else {
+    Log("%s(%d, %d, %d)", sysCallInfo[a[0]], a[1], a[2], a[3]);
+  }
   switch (a[0]) {
   case SYS_yield:
     c->GPRx = 0;

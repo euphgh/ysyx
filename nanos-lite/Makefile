@@ -1,4 +1,4 @@
-#HAS_NAVY = 1
+HAS_NAVY = 1
 RAMDISK_FILE = build/ramdisk.img
 
 NAME = nanos-lite
@@ -28,7 +28,7 @@ update:
 	$(MAKE) -s -C $(NAVY_HOME) ISA=$(ISA) ramdisk
 	@ln -sf $(NAVY_HOME)/build/ramdisk.img $(RAMDISK_FILE)
 	@ln -sf $(NAVY_HOME)/build/ramdisk.h src/files.h
-	@ln -sf $(NAVY_HOME)/libs/libos/src/syscall.h src/syscall.h
+	@# ln -sf $(NAVY_HOME)/libs/libos/src/syscall.h src/syscall.h
 
 .PHONY: update
 endif
