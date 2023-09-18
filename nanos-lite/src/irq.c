@@ -3,7 +3,7 @@
 static Context* do_event(Event e, Context* c) {
   switch (e.event) {
   case EVENT_YIELD:
-    printf("trigger yield exception");
+    printf("trigger yield exception\n");
     break;
   default:
     panic("Unhandled event ID = %d", e.event);
