@@ -2,8 +2,15 @@
 #include "fs.h"
 #include <common.h>
 #define SYSCALL_DEF_STR(name, str) [name] = str,
-#ifdef CONFIG_SFTRACE
+#ifdef CONFIG_STRACE
 static const char *sysCallInfo[32] = {SYSCALL_LIST(SYSCALL_DEF_STR)};
+static const char *getSysCallStr(int num) {
+  if (num > 0 && num < sizeof(sysCallInfo) / sizeof(sysCallInfo[0])) {
+    return sysCallInfo[num];
+  } else {
+    return NULL;
+  }
+}
 #endif
 #undef SYSCALL_DEF_STR
 extern const char *fs_pathname(int fd);
@@ -14,14 +21,15 @@ void do_syscall(Context *c) {
   a[1] = c->GPR2;
   a[2] = c->GPR3;
   a[3] = c->GPR4;
-#ifdef CONFIG_SFTRACE
+#ifdef CONFIG_STRACE
+  char logbuf[64];
   if (a[0] == SYS_close || a[0] == SYS_read || a[0] == SYS_write ||
       a[0] == SYS_lseek || a[0] == SYS_open) {
-    Log("%s[%s, %x(%u), %x(%u)]", sysCallInfo[a[0]], fs_pathname(a[1]), a[2],
-        a[2], a[3], a[3]);
+    snprintf(logbuf, 64, "%s[%s, %lx(%lu), %lx(%lu)]", getSysCallStr(a[0]),
+             fs_pathname(a[1]), a[2], a[2], a[3], a[3]);
   } else {
-    Log("%s[%x(%u), %x(%u), %x(%u)]", sysCallInfo[a[0]], a[1], a[1], a[2], a[2],
-        a[3], a[3]);
+    snprintf(logbuf, 64, "%s[%lx(%lu), %lx(%lu), %lx(%lu)]",
+             getSysCallStr(a[0]), a[1], a[1], a[2], a[2], a[3], a[3]);
   }
 #endif
   switch (a[0]) {
@@ -55,6 +63,9 @@ void do_syscall(Context *c) {
     c->GPRx = 0;
     break;
   default:
-    panic("Unhandled syscall ID = %d", a[0]);
+    panic("Unhandled syscall ID = %ld", a[0]);
   }
+#ifdef CONFIG_STRACE
+  Log("%s = %lx(%lu)", logbuf, c->GPRx, c->GPRx);
+#endif
 }
