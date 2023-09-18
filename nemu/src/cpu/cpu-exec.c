@@ -34,7 +34,14 @@ void device_update();
 
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 
-  if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
+  if (g_print_step) {
+    extern void disassemble(char *str, int size, uint64_t pc, uint8_t *code,
+                            int nbyte);
+    char gPrintBuf[64];
+    disassemble(gPrintBuf, 64, MUXDEF(CONFIG_ISA_x86, _this->snpc, _this->pc),
+                (uint8_t *)&_this->isa.inst.val, 4);
+    printf(FMT_WORD "\t%s\n", _this->pc, gPrintBuf);
+  }
   IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc));
   bool checkWP();
   IFDEF(CONFIG_WATCHPOINT, if (!checkWP()) nemu_state.state = NEMU_STOP);

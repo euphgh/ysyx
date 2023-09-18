@@ -102,10 +102,8 @@ extern "C" void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int
   raw_string_ostream os(s);
   gIP->printInst(&inst, pc, "", *gSTI, os);
 
-  int skip = s.find_first_not_of('\t');
-  const char *p = s.c_str() + skip;
-  assert((int)s.length() - skip < size);
-  strcpy(str, p);
+  void traceWrite(const char *fmt, ...);
+  sprintf(str, "%s 0x%08x", s.c_str() + 1, *(uint32_t *)code);
 }
 
 extern "C" void itrace(uint64_t pc, uint8_t *code, int nbyte) {
@@ -118,5 +116,5 @@ extern "C" void itrace(uint64_t pc, uint8_t *code, int nbyte) {
   raw_string_ostream os(s);
   gIP->printInst(&inst, pc, "", *gSTI, os);
   void traceWrite(const char *fmt, ...);
-  traceWrite("[I] %s 0x%08x ", s.c_str() + 1, *(uint32_t *)code);
+  traceWrite("[I] %s 0x%08x", s.c_str() + 1, *(uint32_t *)code);
 }

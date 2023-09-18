@@ -128,13 +128,13 @@ void init_monitor(int argc, char *argv[]) {
   init_difftest(diff_so_file, img_size, difftest_port);
 
   /* init ftrace */
-  initFtrace(argElfFile);
+  IFDEF(CONIFG_FTRACE, initFtrace(argElfFile));
 
   /* Initialize the simple debugger. */
   init_sdb();
 
 #ifndef CONFIG_ISA_loongarch32r
-  IFDEF(CONFIG_ITRACE, init_disasm(
+  IFDEF(1, init_disasm(
     MUXDEF(CONFIG_ISA_x86,     "i686",
     MUXDEF(CONFIG_ISA_mips32,  "mipsel",
     MUXDEF(CONFIG_ISA_riscv,
