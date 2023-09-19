@@ -24,9 +24,12 @@ void do_syscall(Context *c) {
 #ifdef CONFIG_STRACE
   char logbuf[64];
   if (a[0] == SYS_close || a[0] == SYS_read || a[0] == SYS_write ||
-      a[0] == SYS_lseek || a[0] == SYS_open) {
+      a[0] == SYS_lseek) {
     snprintf(logbuf, 64, "%s[%s, %lx(%lu), %lx(%lu)]", getSysCallStr(a[0]),
              fs_pathname(a[1]), a[2], a[2], a[3], a[3]);
+  } else if (a[0] == SYS_open) {
+    snprintf(logbuf, 64, "%s[%s, %lx(%lu), %lx(%lu)]", getSysCallStr(a[0]),
+             (const char *)a[1], a[2], a[2], a[3], a[3]);
   } else {
     snprintf(logbuf, 64, "%s[%lx(%lu), %lx(%lu), %lx(%lu)]",
              getSysCallStr(a[0]), a[1], a[1], a[2], a[2], a[3], a[3]);
