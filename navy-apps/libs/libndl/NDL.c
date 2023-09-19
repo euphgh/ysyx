@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +10,8 @@
 static int evtdev = -1;
 static int fbdev = -1;
 static int screen_w = 0, screen_h = 0;
+static int canvas_w = 0, canvas_h = 0;
+static int canvas_x = 0, canvas_y = 0;
 static int krdFd;
 
 uint32_t NDL_GetTicks() {
@@ -36,10 +39,48 @@ void NDL_OpenCanvas(int *w, int *h) {
       if (strcmp(buf, "mmap ok") == 0) break;
     }
     close(fbctl);
+  } else {
+    /* save canvas param */
+    canvas_w = *w;
+    canvas_h = *h;
+
+    /* open and read dispinfo */
+    int dispInfo = open("/proc/dispinfo", 0, 0);
+    char buf[64];
+    while (1) {
+      int nread = read(dispInfo, buf, sizeof(buf) - 1);
+      if (nread <= 0)
+        continue;
+      buf[nread] = '\0';
+      if (sscanf(buf, "WIDTH : %d\nHEIGHT : %d", &screen_w, &screen_h) == 2) {
+        if (canvas_h <= screen_h || canvas_w < screen_w) {
+          printf("Open canvas %dw * %dh in %dw * %dh screen\n", canvas_w,
+                 canvas_h, screen_w, screen_h);
+        } else {
+          printf("set width %d is large than screen width %d\n", *w, screen_w);
+          printf("set height %d is large than screen height %d\n", *h,
+                 screen_h);
+        }
+        break;
+      }
+    }
+    close(dispInfo);
+    fbdev = open("/dev/fb", 0, 0);
   }
 }
 
 void NDL_DrawRect(uint32_t *pixels, int x, int y, int w, int h) {
+  size_t baseX = canvas_x + x;
+  size_t baseY = canvas_y + y;
+  size_t offset = (baseY * screen_w + baseX) * 4;
+  printf("baseX: %lu %ld\n", baseX, baseX);
+  printf("baseY: %lu %ld\n", baseY, baseY);
+  printf("base: %lu %ld\n", offset, offset);
+  lseek(fbdev, offset, SEEK_SET);
+  for (size_t i = 0; i < h; i++) {
+    write(fbdev, pixels + (i * w), w * 4);
+    lseek(fbdev, (screen_w - w) * 4, SEEK_CUR);
+  }
 }
 
 void NDL_OpenAudio(int freq, int channels, int samples) {
@@ -61,6 +102,7 @@ int NDL_Init(uint32_t flags) {
     evtdev = 3;
   }
   krdFd = open("/dev/events", 0, 0);
+  close(fbdev);
   return 0;
 }
 
