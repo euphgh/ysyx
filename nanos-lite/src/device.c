@@ -42,12 +42,52 @@ size_t events_read(void *buf, size_t offset, size_t len) {
   }
 }
 
+static char dispInfo[64];
+static int dispWidth, dispHeight;
+int dispinfo_init(int width, int height) {
+  dispWidth = width;
+  dispHeight = height;
+  return sprintf(dispInfo, "WIDTH:%d\nHEIGHT:%d\n", width, height);
+}
+
 size_t dispinfo_read(void *buf, size_t offset, size_t len) {
-  return 0;
+  strncpy(buf, dispInfo + offset, len);
+  return len;
 }
 
 size_t fb_write(const void *buf, size_t offset, size_t len) {
-  return 0;
+  AM_GPU_FBDRAW_T fb;
+
+  assert(len % 4 == 0);
+  assert(offset % 4 == 0);
+
+  size_t leftP = len / 4;
+  size_t nextP = offset / 4;
+  uint8_t *srcPtr = (uint8_t *)buf;
+  int startX, startY, width;
+
+  /* draw pixels */
+  do {
+    startX = (nextP % dispWidth);
+    startY = (nextP / dispWidth);
+    width = leftP < (dispWidth - startX) ? leftP : (dispWidth - startX);
+    fb.x = startX;
+    fb.y = startY;
+    fb.w = width;
+    fb.h = 1;
+    fb.pixels = srcPtr;
+    ioe_write(AM_GPU_FBDRAW, &fb);
+    srcPtr += width * 4;
+    leftP -= width;
+    nextP += width;
+  } while (leftP);
+
+  /* flush */
+  fb.h = 0;
+  fb.w = 0;
+  fb.sync = true;
+  ioe_write(AM_GPU_FBDRAW, &fb);
+  return len;
 }
 
 void init_device() {

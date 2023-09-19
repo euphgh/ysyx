@@ -1,4 +1,5 @@
 #include <fs.h>
+#include <stdio.h>
 
 typedef size_t (*ReadFn) (void *buf, size_t offset, size_t len);
 typedef size_t (*WriteFn) (const void *buf, size_t offset, size_t len);
@@ -12,15 +13,17 @@ typedef struct {
   size_t openOffset;
 } Finfo;
 
-enum { FD_STDIN, FD_STDOUT, FD_STDERR, FD_FB, FD_KB };
+enum { FD_STDIN, FD_STDOUT, FD_STDERR, FD_KB, FD_FB, FD_DISP, FD_LAST };
 
 size_t events_read(void *buf, size_t offset, size_t len);
+size_t dispinfo_read(void *buf, size_t offset, size_t len);
 size_t invalid_read(void *buf, size_t offset, size_t len) {
   panic("should not reach here");
   return 0;
 }
 
 size_t serial_write(const void *buf, size_t offset, size_t len);
+size_t fb_write(const void *buf, size_t offset, size_t len);
 size_t invalid_write(const void *buf, size_t offset, size_t len) {
   panic("should not reach here");
   return 0;
@@ -31,8 +34,9 @@ static Finfo file_table[] __attribute__((used)) = {
     [FD_STDIN] = {"stdin", SIZE_MAX, 0, invalid_read, invalid_write, 0},
     [FD_STDOUT] = {"stdout", SIZE_MAX, 0, invalid_read, serial_write, 0},
     [FD_STDERR] = {"stderr", SIZE_MAX, 0, invalid_read, serial_write, 0},
-    [FD_FB] = {"/dev/vga", SIZE_MAX, 0, invalid_read, invalid_write, 0},
     [FD_KB] = {"/dev/events", SIZE_MAX, 0, events_read, invalid_write, 0},
+    [FD_FB] = {"/dev/fb", SIZE_MAX, 0, invalid_read, fb_write, 0},
+    [FD_DISP] = {"/proc/dispinfo", 32, 0, dispinfo_read, invalid_write, 0},
 #include "files.h"
 };
 
@@ -41,12 +45,16 @@ size_t ramdisk_write(const void *buf, size_t offset, size_t len);
 size_t get_ramdisk_size();
 
 void init_fs() {
-  for (size_t i = FD_KB + 1; i < sizeof(file_table) / sizeof(file_table[0]);
+  for (size_t i = FD_LAST; i < sizeof(file_table) / sizeof(file_table[0]);
        i++) {
     file_table[i].write = ramdisk_write;
     file_table[i].read = ramdisk_read;
   }
-  // TODO: initialize the size of /dev/fb
+  AM_GPU_CONFIG_T config;
+  ioe_read(AM_GPU_CONFIG, &config);
+  int dispinfo_init(int width, int height);
+  file_table[FD_DISP].size = dispinfo_init(config.width, config.height);
+  file_table[FD_FB].size = config.height * config.width * 4;
 }
 
 int fs_open(const char *pathname, int flags, int mode) {
@@ -93,9 +101,13 @@ size_t fs_lseek(int fd, size_t offset, int whence) {
   return res;
 }
 int fs_close(int fd) { return 0; }
+
+static char NoFileNum[16];
 const char *fs_pathname(int fd) {
   if ((fd >= 0) && (fd <= sizeof(file_table) / sizeof(file_table[0])))
     return file_table[fd].name;
-  else
-    return "No File";
+  else {
+    snprintf(NoFileNum, 16, "fd=%x", fd);
+    return NoFileNum;
+  }
 }
