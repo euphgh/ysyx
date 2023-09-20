@@ -13,6 +13,13 @@ void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
 }
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
+  if (s->format->BytesPerPixel != 4) {
+    assert("pixels format must 4 bytes");
+  }
+  if ((x | y | w | h) == 0) {
+    NDL_DrawRect((uint32_t *)s->pixels, 0, 0, s->w, s->h);
+  }
+  NDL_DrawRect((uint32_t *)s->pixels, x, y, w, h);
 }
 
 // APIs below are already implemented.
