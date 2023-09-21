@@ -9,15 +9,13 @@ void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_
   assert(dst->format->BytesPerPixel == 4);
   assert(dst->format->BitsPerPixel == src->format->BitsPerPixel);
   SDL_Rect screen = {
+      .x = 0,
+      .y = 0,
       .w = src->w,
       .h = src->h,
   };
-  if (srcrect) {
-    assert(dstrect->h == srcrect->h);
-    assert(dstrect->w == srcrect->w);
-  } else {
-    srcrect = &screen;
-  }
+  srcrect = srcrect ? srcrect : &screen;
+  dstrect = dstrect ? dstrect : &screen;
   for (size_t i = 0; i < srcrect->h; i++) {
     for (size_t j = 0; j < srcrect->w; j++) {
       ((uint32_t *)dst->pixels)[(i + dstrect->y) * dst->w + (j + dstrect->x)] =
