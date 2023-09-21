@@ -10,7 +10,6 @@
 static int evtdev = -1;
 static int fbdev = -1;
 static int screen_w = 0, screen_h = 0;
-static int canvas_w = 0, canvas_h = 0;
 static int canvas_x = 0, canvas_y = 0;
 static int krdFd;
 
@@ -40,10 +39,6 @@ void NDL_OpenCanvas(int *w, int *h) {
     }
     close(fbctl);
   } else {
-    /* save canvas param */
-    canvas_w = *w;
-    canvas_h = *h;
-
     /* open and read dispinfo */
     int dispInfo = open("/proc/dispinfo", 0, 0);
     char buf[64];
@@ -53,11 +48,14 @@ void NDL_OpenCanvas(int *w, int *h) {
         continue;
       buf[nread] = '\0';
       if (sscanf(buf, "WIDTH : %d\nHEIGHT : %d", &screen_w, &screen_h) == 2) {
-        if (canvas_h <= screen_h || canvas_w < screen_w) {
-          printf("Open canvas %dw * %dh in %dw * %dh screen\n", canvas_w,
-                 canvas_h, screen_w, screen_h);
-          canvas_x = (screen_w - canvas_w) / 2;
-          canvas_y = (screen_h - canvas_h) / 2;
+        if (*w <= screen_h || *h < screen_w) {
+          /* save canvas param */
+          *w = *w ? *w : screen_w;
+          *h = *h ? *h : screen_h;
+          canvas_x = (screen_w - *w) / 2;
+          canvas_y = (screen_h - *h) / 2;
+          printf("Open canvas %dw * %dh in %dw * %dh screen\n", *w, *h,
+                 screen_w, screen_h);
         } else {
           printf("set width %d is large than screen width %d\n", *w, screen_w);
           printf("set height %d is large than screen height %d\n", *h,

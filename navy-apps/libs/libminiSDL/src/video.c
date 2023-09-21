@@ -6,16 +6,47 @@
 
 void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect) {
   assert(dst && src);
+  assert(dst->format->BytesPerPixel == 4);
   assert(dst->format->BitsPerPixel == src->format->BitsPerPixel);
+  SDL_Rect screen = {
+      .w = src->w,
+      .h = src->h,
+  };
+  if (srcrect) {
+    assert(dstrect->h == srcrect->h);
+    assert(dstrect->w == srcrect->w);
+  } else {
+    srcrect = &screen;
+  }
+  for (size_t i = 0; i < srcrect->h; i++) {
+    for (size_t j = 0; j < srcrect->w; j++) {
+      ((uint32_t *)dst->pixels)[(i + dstrect->y) * dst->w + (j + dstrect->x)] =
+          ((uint32_t *)src->pixels)[i * srcrect->w + j];
+    }
+  }
 }
 
 void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
+  assert(dst->format->BytesPerPixel == 4);
+  SDL_Rect screen = {
+      .w = dst->w,
+      .h = dst->h,
+      .x = 0,
+      .y = 0,
+  };
+  if (dstrect) {
+  } else {
+    dstrect = &screen;
+  }
+  for (size_t i = 0; i < dstrect->h; i++) {
+    for (size_t j = 0; j < dstrect->w; j++) {
+      ((uint32_t *)dst->pixels)[i * dst->w + j] = color;
+    }
+  }
 }
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
-  if (s->format->BytesPerPixel != 4) {
-    assert("pixels format must 4 bytes");
-  }
+  assert(s->format->BytesPerPixel == 4);
   if ((x | y | w | h) == 0) {
     NDL_DrawRect((uint32_t *)s->pixels, 0, 0, s->w, s->h);
   }
