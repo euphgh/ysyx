@@ -26,7 +26,17 @@ void init_proc() {
 
   // load program here
   void naive_uload(PCB * pcb, const char *filename);
-  naive_uload(NULL, NULL);
+  naive_uload(NULL,
+#ifdef CONFIG_BATCH
+#ifdef CONFIG_MENU
+              "/bin/menu"
+#else
+              "/bin/nterm"
+#endif
+#else
+              "/bin/dummy"
+#endif
+  );
 }
 
 Context* schedule(Context *prev) {

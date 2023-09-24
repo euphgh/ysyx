@@ -46,7 +46,18 @@ void do_syscall(Context *c) {
     break;
   case SYS_exit:
     c->GPRx = a[1];
+#ifdef CONFIG_BATCH
+    naive_uload(NULL,
+#ifdef CONFIG_MENU
+                "/bin/menu"
+#else
+
+                "/bin/nterm"
+#endif
+    );
+#else
     halt(a[1]);
+#endif
     break;
   case SYS_write:
     c->GPRx = fs_write(a[1], (void *)a[2], a[3]);
