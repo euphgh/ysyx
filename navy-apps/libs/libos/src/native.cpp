@@ -28,6 +28,7 @@ static int pipe_size = 0;
 
 static FILE *(*glibc_fopen)(const char *path, const char *mode) = NULL;
 static int (*glibc_open)(const char *path, int flags, ...) = NULL;
+static int (*glibc_close)(int fildes) = NULL;
 static ssize_t (*glibc_read)(int fd, void *buf, size_t count) = NULL;
 static ssize_t (*glibc_write)(int fd, const void *buf, size_t count) = NULL;
 static int (*glibc_execve)(const char *filename, char *const argv[], char *const envp[]) = NULL;
@@ -154,6 +155,7 @@ extern "C" int open(const char *path, int flags, ...);
 extern "C" ssize_t read(int fd, void *buf, size_t count);
 extern "C" ssize_t write(int fd, const void *buf, size_t count);
 extern "C" int execve(const char *filename, char *const argv[], char *const envp[]);
+extern "C" int close(int fildes);
 
 FILE *fopen(const char *path, const char *mode) {
   char newpath[512];
@@ -166,6 +168,8 @@ FILE *fopen(const char *path, const char *mode) {
 
 int open(const char *path, int flags, ...) {
   if (strcmp(path, "/proc/dispinfo") == 0) {
+    if (dispinfo_fd == -1)
+        dispinfo_fd = memfd_create("/proc/dispinfo", 0);
     return dispinfo_fd;
   } else if (strcmp(path, "/dev/events") == 0) {
     return evt_fd;
@@ -181,7 +185,16 @@ int open(const char *path, int flags, ...) {
   }
 }
 
+extern "C" int close(int fildes) {
+  if (fildes == dispinfo_fd) {
+    dispinfo_fd = -1;
+  }
+  return glibc_close(fildes);
+}
+
 ssize_t read(int fd, void *buf, size_t count) {
+  if (fd == -1)
+    return -1;
   if (fd == dispinfo_fd) {
     return snprintf((char *)buf, count, "WIDTH: %d\nHEIGHT: %d\n", disp_w, disp_h);
   } else if (fd == evt_fd) {
@@ -246,6 +259,8 @@ struct Init {
     assert(glibc_fopen != NULL);
     glibc_open = (int(*)(const char*, int, ...))dlsym(RTLD_NEXT, "open");
     assert(glibc_open != NULL);
+    glibc_close = (int (*)(int))dlsym(RTLD_NEXT, "close");
+    assert(glibc_close != NULL);
     glibc_read = (ssize_t (*)(int fd, void *buf, size_t count))dlsym(RTLD_NEXT, "read");
     assert(glibc_read != NULL);
     glibc_write = (ssize_t (*)(int fd, const void *buf, size_t count))dlsym(RTLD_NEXT, "write");
