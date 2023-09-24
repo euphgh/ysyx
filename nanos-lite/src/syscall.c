@@ -1,5 +1,6 @@
 #include "syscall.h"
 #include "fs.h"
+#include "proc.h"
 #include <common.h>
 #define SYSCALL_DEF_STR(name, str) [name] = str,
 #ifdef CONFIG_STRACE
@@ -15,6 +16,7 @@ static const char *getSysCallStr(int num) {
 #undef SYSCALL_DEF_STR
 extern const char *fs_pathname(int fd);
 extern void uptimer_read(size_t *sec, size_t *us);
+extern void naive_uload(PCB *pcb, const char *filename);
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
@@ -48,6 +50,9 @@ void do_syscall(Context *c) {
     break;
   case SYS_write:
     c->GPRx = fs_write(a[1], (void *)a[2], a[3]);
+    break;
+  case SYS_execve:
+    naive_uload(NULL, (const char *)a[1]);
     break;
   case SYS_read:
     c->GPRx = fs_read(a[1], (void *)a[2], a[3]);
