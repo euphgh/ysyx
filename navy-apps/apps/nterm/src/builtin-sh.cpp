@@ -23,6 +23,17 @@ static void sh_prompt() {
 }
 
 static void sh_handle_cmd(const char *cmd) {
+  char *dupCmd = strdup(cmd);
+  char delim[] = " \n\t";
+  char *filename = strtok(dupCmd, delim);
+  char *const argv0 = strdup(filename);
+  char *const argv[] = {argv0};
+  int ret = execvp(filename, argv);
+  if (ret == -1) {
+    sh_printf("nterm: command not find: %s\n", filename);
+  }
+  free(argv0);
+  free(dupCmd);
 }
 
 void builtin_sh_run() {
