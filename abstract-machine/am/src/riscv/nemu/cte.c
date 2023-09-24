@@ -11,6 +11,8 @@ Context* __am_irq_handle(Context *c) {
     case EC_EnvCallFromM:
       ev.event = EVENT_SYSCALL;
       c->mepc = c->mepc + 4;
+      if (c->gpr[17] == -1)
+        ev.event = EVENT_YIELD;
       break;
     default:
       ev.event = EVENT_ERROR;
@@ -37,7 +39,15 @@ bool cte_init(Context*(*handler)(Event, Context*)) {
 }
 
 Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
-  return NULL;
+  void *ctxStart = kstack.end - sizeof(Context);
+  Context *ctx = (Context *)ctxStart;
+  for (size_t i = 0; i < 32; i++) {
+    ctx->gpr[i] = i;
+  }
+  ctx->mepc = (uintptr_t)entry;
+  ctx->mcause = (uintptr_t)0x0;
+  ctx->mstatus = (uintptr_t)0xa00001800;
+  return ctx;
 }
 
 void yield() {
