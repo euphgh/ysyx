@@ -6,7 +6,7 @@
 
 void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect) {
   assert(dst && src);
-  assert(dst->format->BytesPerPixel == 4);
+  assert(dst->format->BytesPerPixel == 4 || dst->format->BytesPerPixel == 1);
   assert(dst->format->BitsPerPixel == src->format->BitsPerPixel);
   SDL_Rect screen = {
       .x = 0,
@@ -18,8 +18,14 @@ void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_
   dstrect = dstrect ? dstrect : &screen;
   for (size_t i = 0; i < srcrect->h; i++) {
     for (size_t j = 0; j < srcrect->w; j++) {
-      ((uint32_t *)dst->pixels)[(i + dstrect->y) * dst->w + (j + dstrect->x)] =
-          ((uint32_t *)src->pixels)[i * srcrect->w + j];
+      if (dst->format->BytesPerPixel == 4) {
+        ((uint32_t *)
+             dst->pixels)[(i + dstrect->y) * dst->w + (j + dstrect->x)] =
+            ((uint32_t *)src->pixels)[i * srcrect->w + j];
+      } else {
+        ((uint8_t *)dst->pixels)[(i + dstrect->y) * dst->w + (j + dstrect->x)] =
+            ((uint8_t *)src->pixels)[i * srcrect->w + j];
+      }
     }
   }
 }
@@ -44,11 +50,26 @@ void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
 }
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
-  assert(s->format->BytesPerPixel == 4);
+  assert(s->format->BytesPerPixel == 4 || s->format->BytesPerPixel == 1);
   if ((x | y | w | h) == 0) {
-    NDL_DrawRect((uint32_t *)s->pixels, 0, 0, s->w, s->h);
+    x = 0;
+    y = 0;
+    w = s->w;
+    h = s->h;
   }
-  NDL_DrawRect((uint32_t *)s->pixels, x, y, w, h);
+  if (s->format->BytesPerPixel == 4) {
+    NDL_DrawRect((uint32_t *)s->pixels, x, y, w, h);
+  } else {
+    uint32_t buf[h * w];
+    for (size_t i = 0; i < h; i++) {
+      for (size_t j = 0; j < w; j++) {
+        size_t pIdx = i * w + j;
+        size_t cIdx = ((uint8_t *)s->pixels)[pIdx];
+        buf[pIdx] = s->format->palette->colors[cIdx].val;
+      }
+    }
+    NDL_DrawRect(buf, x, y, w, h);
+  }
 }
 
 // APIs below are already implemented.
