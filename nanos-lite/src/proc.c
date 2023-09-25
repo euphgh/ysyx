@@ -1,3 +1,4 @@
+#include "am.h"
 #include <proc.h>
 
 #define MAX_NR_PROC 4
@@ -20,27 +21,13 @@ void hello_fun(void *arg) {
   }
 }
 
+void context_uload(PCB *pcb, const char *fileName);
 void init_proc() {
+  Log("Initializing processes...");
   void context_kload(PCB * pcb, void (*entry)(void *), void *arg);
   context_kload(&pcb[0], hello_fun, "foo");
-  context_kload(&pcb[1], hello_fun, "bar");
+  context_uload(&pcb[1], "/bin/nslider");
   switch_boot_pcb();
-
-  Log("Initializing processes...");
-
-  //   // load program here
-  //   void naive_uload(PCB * pcb, const char *filename);
-  //   naive_uload(NULL,
-  // #ifdef CONFIG_BATCH
-  // #ifdef CONFIG_MENU
-  //               "/bin/menu"
-  // #else
-  //               "/bin/nterm"
-  // #endif
-  // #else
-  //               "/bin/dummy"
-  // #endif
-  //   );
 }
 
 void context_kload(PCB *pcb, void (*entry)(void *), void *arg) {
