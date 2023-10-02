@@ -21,12 +21,15 @@ void hello_fun(void *arg) {
   }
 }
 
-void context_uload(PCB *pcb, const char *fileName);
+void context_uload(PCB *pcb, const char *fileName, char *const argv[],
+                   char *const envp[]);
 void init_proc() {
   Log("Initializing processes...");
   void context_kload(PCB * pcb, void (*entry)(void *), void *arg);
   context_kload(&pcb[0], hello_fun, "foo");
-  context_uload(&pcb[1], "/bin/nslider");
+  char *argv[] = {"Hello", "World", NULL};
+  char *envp[] = {"FOO=BAR", NULL};
+  context_uload(&pcb[1], "/bin/args-test", argv, envp);
   switch_boot_pcb();
 }
 
@@ -46,3 +49,5 @@ Context *schedule(Context *prev) {
   // then return the new context
   return current->cp;
 }
+
+PCB *allocPCB() { return pcb + 1; }

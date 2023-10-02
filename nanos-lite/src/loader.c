@@ -1,7 +1,9 @@
 #include <proc.h>
 #include <elf.h>
 
+#include "am.h"
 #include "fs.h"
+#include "memory.h"
 #ifdef __LP64__
 # define Elf_Ehdr Elf64_Ehdr
 # define Elf_Phdr Elf64_Phdr
@@ -47,10 +49,71 @@ void naive_uload(PCB *pcb, const char *filename) {
   ((void(*)())entry) ();
 }
 
-void context_uload(PCB *pcb, const char *fileName) {
+static char *strcpyd(char *dst, const char *src) {
+  int len = strlen(src);
+  for (size_t i = 0; i < len; i++) {
+    dst[i - len] = src[i];
+  }
+  dst[0] = '\0';
+  return dst - len;
+}
+
+static void *align_down(void *ptr, size_t alignment) {
+  uintptr_t address = (uintptr_t)ptr;
+  uintptr_t aligned_address = address & ~(alignment - 1);
+  return (void *)aligned_address;
+}
+
+#define PushArr(sp, arr)                                                       \
+  int arr##c = 0;                                                              \
+  do {                                                                         \
+    while (arr[arr##c])                                                        \
+      arr##c++;                                                                \
+  } while (0);                                                                 \
+  char *arr##d[arr##c + 1];                                                    \
+  do {                                                                         \
+    char *ptr = sp - 1;                                                        \
+    for (int i = 0; i < arr##c; i++) {                                         \
+      arr##d[i] = strcpyd(ptr, arr[i]);                                        \
+      ptr = arr##d[i] - 1;                                                     \
+    }                                                                          \
+    sp = ptr;                                                                  \
+    arr##d[arr##c] = NULL;                                                     \
+  } while (0)
+
+void context_uload(PCB *pcb, const char *fileName, char *const argv[],
+                   char *const envp[]) {
   uintptr_t entry = loader(pcb, fileName);
   Area sArea = {.end = pcb->stack + STACK_SIZE, .start = pcb->stack};
   Context *ctx = ucontext(NULL, sArea, (void *)entry);
-  ctx->GPRx = (uintptr_t)heap.end;
+  void *sp = heap.end;
+  PushArr(sp, argv);
+  PushArr(sp, envp);
+  void *ptr = align_down(sp, _Alignof(char *));
+  ptr = memcpy(ptr - sizeof(envpd), envpd, sizeof(envpd));
+  ptr = memcpy(ptr - sizeof(argvd), argvd, sizeof(argvd));
+  int *argcPtr = ptr - sizeof(int);
+  *argcPtr = argvc;
+  ctx->GPRx = (uintptr_t)argcPtr;
   pcb->cp = ctx;
+}
+
+int execCall(const char *pathname, char *const argv[], char *const envp[]) {
+  PCB *pcb = current;
+  uintptr_t entry = loader(pcb, pathname);
+  Area sArea = {.end = pcb->stack + STACK_SIZE, .start = pcb->stack};
+  Context *ctx = ucontext(NULL, sArea, (void *)entry);
+  void *sp = heap.end;
+  PushArr(sp, argv);
+  PushArr(sp, envp);
+  void *ptr = align_down(sp, _Alignof(char *));
+  ptr = memcpy(ptr - sizeof(envpd), envpd, sizeof(envpd));
+  ptr = memcpy(ptr - sizeof(argvd), argvd, sizeof(argvd));
+  int *argcPtr = ptr - sizeof(int);
+  *argcPtr = argvc;
+  ctx->GPRx = (uintptr_t)argcPtr;
+  pcb->cp = ctx;
+
+  yield();
+  return 0;
 }
