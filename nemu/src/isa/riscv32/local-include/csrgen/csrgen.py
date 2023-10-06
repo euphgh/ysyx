@@ -39,15 +39,17 @@ class Field:
     def structDef(self) -> str:
         return "word_t {:s}: {:d};".format(self.name, self.msb - self.lsb + 1)
 
-    def writeLine(self, csrName) -> str:
+    def writeLine(self, csrName: str) -> str:
+        if self.spec == FieldSpec.READ:
+            return ""
         return (
             (
                 (
-                    "if ({func:s}(newVar.{fieldName:s})) {{ {csrName:s}.{fieldName:s} = newVar.{fieldName:s}; }}".format(
+                    "if ({func:s}(newVar.{fieldName:s})) {{ {csrName:s}->{fieldName:s} = newVar.{fieldName:s}; }}".format(
                         func=self.legalFunc, fieldName=self.name, csrName=csrName
                     )
-                    if (self.legalFunc != None)
-                    else "{csrName:s}.{fieldName:s} = newVar.{fieldName:s};".format(
+                    if (self.legalFunc != "")
+                    else "{csrName:s}->{fieldName:s} = newVar.{fieldName:s};".format(
                         fieldName=self.name, csrName=csrName
                     )
                 )
@@ -60,7 +62,7 @@ class Field:
         return self.init << self.lsb
 
 
-srcVarDef = "{name:s}_t {name:s};"
+srcVarDef = "{name:s}_t* {name:s}"
 headTypeDef = (
     """
 typedef union {{
@@ -71,66 +73,68 @@ typedef union {{
 }} {name:s}_t;
 extern """
     + srcVarDef
+    + ";"
 )
 csrOpFunc = "bool {name:s}RW(word_t* rd, word_t src1, csrOp op)"
 csrOpDefFmt = csrOpFunc + ";"
-csrOpImpFmt = (
-    csrOpFunc
-    + """{{
-    bool res = true;
-    if (rd) *rd = {name:s}.val;
-    switch (op) {{
-        case csrSET: res = {name:s}Write({name:s}.val | src1); break;
-        case csrCLR: res = {name:s}Write({name:s}.val & ~src1); break;
-        case csrWAR: res = {name:s}Write(src1); break;
-    }}
-    return res;
-}}"""
-)
 
 csrrwFunc = "bool csrRW(int csrDst, word_t* rd, word_t src1, csrOp op)"
 csrrwDefFmt = csrrwFunc + ";"
 csrrwImpFmt = (
     csrrwFunc
     + """{{
-    bool res = false;
     switch (csrDst) {{
         {code:s}
+        default: return false;
     }}
-    return res;
 }}"""
 )
 
 csrInitFunc = "void csrInit()"
 csrInitDefFmt = csrInitFunc + ";"
-csrInitImpFmt = csrInitFunc + """{{\n{code:s}\n}}"""
+csrInitImpFmt = (
+    csrInitFunc
+    + """{{
+    {code:s}
+}}"""
+)
 
 
 class CtrlStatReg:
-    def __init__(self, name: str, num: int, fields: list[Field]) -> None:
+    def __init__(
+        self, name: str, num: int, fields: list[Field], beforeRead: str, autoPtr: bool
+    ) -> None:
         self.name = name
         self.num = num
         self.fields: list[Field] = []
+        self.beforeRead: str = beforeRead
+        self.autoPtr: bool = autoPtr
 
-        bitsList = [-1 for i in range(WORD_LEN + 1)]
+        bitsList = [-1] * (WORD_LEN + 1)
         bitsList[WORD_LEN] = -2
         for idx in range(len(fields)):
             field = fields[idx]
+            assert field.lsb <= field.msb, "csr {} field {} lsb > msb".format(
+                name, field.name
+            )
             for bits in range(field.lsb, field.msb + 1):
+                assert bitsList[bits] == -1, "csr {} overlap".format(name)
                 bitsList[bits] = idx
 
         startBits = 0
+        if fields.__len__() == 0:
+            return
         for i in range(1, WORD_LEN + 1):
             if bitsList[i - 1] != bitsList[i]:
                 endBits = i - 1
                 self.fields.append(
                     Field(
-                        "r{:d}to{:d}".format(endBits, startBits),
+                        "z{:d}to{:d}".format(endBits, startBits),
                         endBits,
                         startBits,
                         FieldSpec["READ"],
                         0,
-                        None,
+                        "",
                     )
                     if (bitsList[endBits] < 0)
                     else fields[bitsList[endBits]]
@@ -149,34 +153,54 @@ class CtrlStatReg:
         return headTypeDef.format(name=self.name, fields="\n".join(structList))
 
     def genVarDef(self) -> str:
-        return srcVarDef.format(name=self.name)
+        fmt = ""
+        if self.autoPtr:
+            fmt = """
+            static {{name:s}}_t {{name:s}}Reg;
+            {} = &{{name:s}}Reg;
+            """.format(
+                srcVarDef
+            )
+        else:
+            fmt = srcVarDef + " = NULL;"
+        return fmt.format(name=self.name)
 
     def genOpFuncDef(self) -> str:
         return csrOpDefFmt.format(name=self.name)
 
     def genOpFuncImp(self) -> str:
-        return csrOpImpFmt.format(name=self.name)
+        readStr = "{name:s}->val".format(name=self.name)
+        if self.beforeRead != "":
+            readStr = "{:s}({:s})".format(self.beforeRead, readStr)
+        return """{head:s} {{
+            if (rd) *rd = {read:s};
+            return {name:s}Write(whichOp({name:s}->val, src1, op));
+        }}""".format(
+            name=self.name, head=csrOpFunc.format(name=self.name), read=readStr
+        )
 
     def genRWcase(self) -> str:
-        return "case 0x{:x}: res = {:s}RW(rd, src1, op); break;".format(
-            self.num, self.name
-        )
+        return "case 0x{:x}:  return {:s}RW(rd, src1, op);".format(self.num, self.name)
 
     def genPrivateWriteFunc(self) -> str:
         csrWriteFmt = """
-        static bool {csrName:s}Write(word_t val) {{
+        inline static bool {csrName:s}Write(word_t val) {{
             {csrName:s}_t newVar = {{.val = val}};
             {code:s}
             return true;
         }}"""
         writeLines = [field.writeLine(self.name) for field in self.fields]
-        return csrWriteFmt.format(csrName=self.name, code="\n".join(writeLines))
+        writeCode = "\n".join(writeLines)
+        if (str.strip(writeCode) == ""):
+            return "inline static bool {csrName:s}Write(word_t val) {{ return true; }}".format(csrName = self.name)
+        else:
+            return csrWriteFmt.format(csrName=self.name, code=writeCode)
 
     def genInitCode(self) -> str:
         initValue = 0
         for field in self.fields:
             initValue = initValue | field.initValue()
-        return "{:s}.val = 0x{:x};".format(self.name, initValue)
+        return "{:s}->val = 0x{:x};".format(self.name, initValue)
 
 
 class PaserCSR:
@@ -184,7 +208,7 @@ class PaserCSR:
         self.allCSR = csrs
 
     def headCode(self) -> str:
-        code = []
+        code: list[str] = []
         code = code + [csr.genTypeDef() for csr in self.allCSR]
         code = code + [csr.genOpFuncDef() for csr in self.allCSR]
         code.append(csrrwDefFmt)
@@ -192,7 +216,7 @@ class PaserCSR:
         return "\n".join(code)
 
     def srcCode(self) -> str:
-        code = []
+        code: list[str] = []
         code = code + [csr.genVarDef() for csr in self.allCSR]
         code = code + [csr.genPrivateWriteFunc() for csr in self.allCSR]
         code = code + [csr.genOpFuncImp() for csr in self.allCSR]
@@ -203,21 +227,37 @@ class PaserCSR:
         return "\n".join(code)
 
 
-def FLD(*args, **kwargs) -> Field:
-    init = 0x0
-    legalFunc = None
-    if len(args) > 4:
-        if isinstance(args[4], int):
-            init = args[4]
-        elif isinstance(args[4], str):
-            legalFunc = args[4]
-        if len(args) > 5:
-            if isinstance(args[4], int):
-                init = args[5]
-            elif isinstance(args[5], str):
-                legalFunc = args[5]
-    return Field(args[0], args[1], args[2], FieldSpec[args[3]], init, legalFunc)
+def FLD(
+    name: str = "",
+    msb: int = -1,
+    lsb: int = -1,
+    fspec: str = "",
+    init: int = 0,
+    legalFunc: str = "",
+) -> Field:
+    assert name != ""
+    assert lsb >= 0
+    assert msb >= 0
+    assert lsb <= msb, "parse field {} lsb({}) > msb({})".format(name, lsb, msb)
+    return Field(name, msb, lsb, FieldSpec[fspec], init, legalFunc)
 
 
-def CSR(*args, **kwargs) -> CtrlStatReg:
-    return CtrlStatReg(args[0], args[1], args[2])
+def removeFields(all: list[Field], minus: list[str]) -> list[Field]:
+    res: list[Field] = []
+    for e in all:
+        if e.name in minus:
+            continue
+        res.append(e)
+    return res
+
+
+def CSR(
+    name: str = "",
+    num: int = -1,
+    fields: list[Field] = [],
+    beforeRead: str = "",
+    autoPtr: bool = True,
+) -> CtrlStatReg:
+    assert name != ""
+    assert num != -1
+    return CtrlStatReg(name, num, fields, beforeRead, autoPtr)

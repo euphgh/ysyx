@@ -8,6 +8,13 @@ typedef enum {
   csrWAR,
 } csrOp;
 
+typedef enum {
+  SatpModeBare = 0,
+  SatpModeSv32 = 1,
+  SatpModeSv39 = 8,
+  SatpModeSv48 = 9,
+} SatpMode;
+
 #define InterruptList(_)                                                       \
   _(EC_SSoftInt, 1, "SSoftInt")                                                \
   _(EC_MSoftInt, 3, "MSoftInt")                                                \
