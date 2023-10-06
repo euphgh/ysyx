@@ -20,10 +20,7 @@
 
 typedef struct Decode {
   vaddr_t pc;
-  vaddr_t snpc; // static next pc
-  vaddr_t dnpc; // dynamic next pc
   ISADecodeInfo isa;
-  IFDEF(CONFIG_ITRACE, char logbuf[128]);
 } Decode;
 typedef enum { RAS_NONE = 0, RAS_CALL = 1, RAS_RET = 2, RAS_PP = 3 } ras_t;
 

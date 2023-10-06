@@ -44,7 +44,7 @@ static void trace_and_difftest(vaddr_t dnpc) {
                 (uint8_t *)&isa_decode.isa.inst.val, 4);
     printf(FMT_WORD "\t%s\n", isa_decode.pc, gPrintBuf);
   }
-  IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc));
+  IFDEF(CONFIG_DIFFTEST, difftest_step(isa_decode.pc, dnpc));
   bool checkWP();
   IFDEF(CONFIG_WATCHPOINT, if (!checkWP()) nemu_state.state = NEMU_STOP);
   bool checkBP();

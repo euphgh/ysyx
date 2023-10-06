@@ -31,6 +31,26 @@ typedef enum {
 // decode
 typedef struct {
   union {
+    struct {
+      word_t opcode : 7;
+      word_t rd : 5;
+      word_t funct3 : 3;
+      word_t rs1 : 5;
+      word_t rs2 : 5;
+      word_t funct7 : 7;
+    } r;
+    struct {
+      word_t opcode : 7;
+      word_t rd : 5;
+      word_t funct3 : 3;
+      word_t rs1 : 5;
+      word_t imm : 12;
+    } i;
+    struct {
+      word_t opcode : 7;
+      word_t rd : 5;
+      word_t imm : 20;
+    } u;
     uint32_t val;
   } inst;
 } MUXDEF(CONFIG_RV64, riscv64_ISADecodeInfo, riscv32_ISADecodeInfo);
