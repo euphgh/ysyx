@@ -86,7 +86,11 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
   Assert(type == MEM_TYPE_IFETCH || type == MEM_TYPE_WRITE ||
              type == MEM_TYPE_READ,
          "type = %d not expected", type);
+
+  /* Step1: Effective privilege mode must be S-mode or U-mode */
   MMU_ASSERT(memPLv == PRI_S || memPLv == PRI_U, "MemPLv = %d", memPLv);
+
+  /* Step2: Calculate pte address and load pte */
   word_t base = satp->ppn * PAGE_SIZE;
   Sv39Vaddr sv39va = {.val = vaddr};
   MMU_ASSERT(sv39va.vpn >> 26 ? ~sv39va.ext : sv39va.ext, "vaddr = %lx", vaddr);
@@ -94,8 +98,15 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
     base += BITS(sv39va.vpn, pageLv * 9 + 8, pageLv * 9);
     Sv39Pte pte = {.val = paddr_read(base, 8)};
     MMU_ASSERT(pte.reserved == 0, "pte = %lx", pte.val);
+
+    /* Step3: Check pte.v = 0, or if pte.r = 0 and pte.w = 1 */
     MMU_ASSERT((!pte.v || (!pte.r && pte.w)) == false, "pte = %lx", pte.val);
-    MMU_ASSERT(pte.r || pte.x, "pte = %lx", pte.val);
+
+    /* Step4: Check pte.r = 1 or pte.x = 1 for leaf or node */
+    if ((pte.r || pte.x) == false)
+      continue;
+
+    /* Step5: Check leaf PTE r, w, x, u bits */
     switch (type) {
     case MEM_TYPE_IFETCH:
       MMU_ASSERT(pte.x && pte.u ^ (memPLv != PRI_U), "pte = %lx", pte.val);
@@ -109,8 +120,12 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
     default:
       MMU_ASSERT(false, "type not expected %d", type);
     }
+
+    /* Step6: Check misaligned superpage */
     for (int i = pageLv - 1; i >= 0; i--)
       MMU_ASSERT(ppn(pte, i) == 0, "pte = %lx", pte.val);
+
+    /* Step7: Check for d and a bits */
     if (pte.a == false || (type == MEM_TYPE_WRITE && pte.d == false)) {
 #ifdef HARDWAVE_AD
       Sv39Pte newPte = {.val = pte.val};
@@ -123,6 +138,8 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
       MMU_ASSERT(false, "a == 0 || (d == 0 && type == %d) %lx", type, pte.val);
 #endif
     }
+
+    /* Step8: return paddr */
     return (pte.ppn << 12) | BITS(vaddr, 11 + 9 * pageLv, 0);
   }
 
