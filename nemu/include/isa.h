@@ -18,6 +18,7 @@
 
 // Located at src/isa/$(GUEST_ISA)/include/isa-def.h
 #include <isa-def.h>
+#include <setjmp.h>
 
 // The macro `__GUEST_ISA__` is defined in $(CFLAGS).
 // It will be expanded as "x86" or "mips32" ...
@@ -41,7 +42,9 @@ bool isa_reg_str2val(const char *name, word_t *value);
 
 // exec
 struct Decode;
-int isa_exec_once(struct Decode *s);
+extern struct Decode isa_decode;
+extern jmp_buf isa_except_buf;
+int isa_exec_once();
 
 // memory
 enum { MMU_DIRECT, MMU_TRANSLATE, MMU_FAIL };
@@ -51,9 +54,11 @@ enum { MEM_RET_OK, MEM_RET_FAIL, MEM_RET_CROSS_PAGE };
 int isa_mmu_check(vaddr_t vaddr, int len, int type);
 #endif
 paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type);
+bool isa_mmu_success();
+const char *isa_mmu_errorInfo();
 
 // interrupt/exception
-vaddr_t isa_raise_intr(word_t NO, vaddr_t epc);
+void isa_raise_intr(word_t NO, vaddr_t epc);
 void isa_init_csr();
 #define INTR_EMPTY ((word_t)-1)
 word_t isa_query_intr();
