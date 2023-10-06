@@ -13,10 +13,10 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
-#include <memory/host.h>
-#include <memory/paddr.h>
 #include <device/mmio.h>
 #include <isa.h>
+#include <memory/host.h>
+#include <memory/paddr.h>
 
 #if   defined(CONFIG_PMEM_MALLOC)
 static uint8_t *pmem = NULL;
@@ -40,8 +40,13 @@ static void pmem_write(paddr_t addr, int len, word_t data) {
 }
 
 static void out_of_bound(paddr_t addr) {
-  panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
-      addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
+  extern vaddr_t mtraceVaddr;
+  if (isa_mmu_success() == false)
+    error("translate vaddr " FMT_WORD "error for %s", mtraceVaddr,
+          isa_mmu_errorInfo());
+  panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR
+        ", " FMT_PADDR "] at pc = " FMT_WORD,
+        addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
 }
 
 void init_mem() {

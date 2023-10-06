@@ -12,6 +12,7 @@
 *
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
+#include "isa.h"
 
 #include <memory/vaddr.h>
 #include <memory/paddr.h>
@@ -25,7 +26,10 @@ word_t vaddr_ifetch(vaddr_t addr, int len) {
   mtraceVaddr = addr;
   mtraceVname = "Ifetch";
 #endif
-  return paddr_read(addr, len);
+  paddr_t paddr = (isa_mmu_check(addr, len, MEM_TYPE_IFETCH) == MMU_TRANSLATE)
+                      ? isa_mmu_translate(addr, len, MEM_TYPE_IFETCH)
+                      : addr;
+  return paddr_read(paddr, len);
 }
 
 word_t vaddr_read(vaddr_t addr, int len) {
@@ -33,7 +37,10 @@ word_t vaddr_read(vaddr_t addr, int len) {
   mtraceVaddr = addr;
   mtraceVname = "Dread ";
 #endif
-  return paddr_read(addr, len);
+  paddr_t paddr = (isa_mmu_check(addr, len, MEM_TYPE_READ) == MMU_TRANSLATE)
+                      ? isa_mmu_translate(addr, len, MEM_TYPE_READ)
+                      : addr;
+  return paddr_read(paddr, len);
 }
 
 void vaddr_write(vaddr_t addr, int len, word_t data) {
@@ -41,5 +48,8 @@ void vaddr_write(vaddr_t addr, int len, word_t data) {
   mtraceVaddr = addr;
   mtraceVname = "Dwrite";
 #endif
-  paddr_write(addr, len, data);
+  paddr_t paddr = (isa_mmu_check(addr, len, MEM_TYPE_WRITE) == MMU_TRANSLATE)
+                      ? isa_mmu_translate(addr, len, MEM_TYPE_WRITE)
+                      : addr;
+  paddr_write(paddr, len, data);
 }
