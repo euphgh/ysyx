@@ -10,8 +10,10 @@ static word_t whichOp(word_t csr, word_t src, csrOp op) {
     return src;
   }
 }
-static word_t sstatusRead(word_t val) {
+static word_t sstatusClrmstatus(word_t val) {
   sstatus_t newVar = {.val = val};
+  newVar.z3to2 = 0;
+  newVar.z7to7 = 0;
   newVar.z12to11 = 0;
   newVar.z17to17 = 0;
   newVar.z31to20 = 0;

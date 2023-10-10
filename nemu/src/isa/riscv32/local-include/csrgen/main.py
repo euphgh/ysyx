@@ -66,7 +66,7 @@ AllCRS: list[CtrlStatReg] = [
             ],
         ),
         autoPtr=False,
-        beforeRead="sstatusRead",
+        beforeRead="sstatusClrmstatus",
     ),
     CSR("mscratch", 0x340, fspec="WARL"),
     CSR("sscratch", 0x140, fspec="WARL"),
