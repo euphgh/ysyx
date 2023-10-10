@@ -39,7 +39,7 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
     mstatus->mpp = machineMode;
     mstatus->mpie = mstatus->mie;
     mstatus->mie = 0;
-    mtval->val = tval;
+    // mtval->val = tval;
     machineMode = PRI_M;
   } else {
     sepc->val = isa_decode.pc;
@@ -47,7 +47,7 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
     sstatus->spp = machineMode;
     sstatus->spie = sstatus->sie;
     sstatus->sie = 0;
-    stval->val = tval;
+    // stval->val = tval;
     machineMode = PRI_S;
   }
 
