@@ -237,7 +237,7 @@ inline ExcCode ecallCode() {
 
 static word_t eretInstr() {
 #define xRet(x)                                                                \
-  if (mstatus->mpp == PRI_M)                                                   \
+  if (mstatus->mpp != PRI_M)                                                   \
     mstatus->mprv = false;                                                     \
   x##status->x##ie = x##status->x##pie;                                        \
   machineMode = x##status->x##pp;                                              \
