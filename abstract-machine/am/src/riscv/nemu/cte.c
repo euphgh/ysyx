@@ -1,3 +1,5 @@
+#include "klib-macros.h"
+
 #include <am.h>
 #include <riscv/riscv.h>
 #include <klib.h>
@@ -13,6 +15,15 @@ Context* __am_irq_handle(Context *c) {
       c->mepc = c->mepc + 4;
       if (c->gpr[17] == -1)
         ev.event = EVENT_YIELD;
+      break;
+    case EC_InstrAddrMisAlign:
+      panic("EC_InstrAddrMisAlign");
+      break;
+    case EC_LoadAddrMisAlign:
+      panic("EC_LoadAddrMisAlign");
+      break;
+    case EC_StoreAddrMisAlign:
+      panic("EC_StoreAddrMisAlign");
       break;
     default:
       ev.event = EVENT_ERROR;
