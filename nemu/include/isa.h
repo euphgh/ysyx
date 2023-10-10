@@ -66,6 +66,10 @@ word_t isa_query_intr();
 // difftest
 bool isa_difftest_checkregs(CPU_state *ref_r, vaddr_t pc);
 void isa_difftest_showError(CPU_state *ref_r, vaddr_t pc);
+#ifdef CONFIG_ISA_riscv
+bool isa_difftest_checkcsrs();
+void isa_difftest_showCSRerr();
+#endif
 void isa_difftest_attach();
 
 #endif

@@ -77,6 +77,16 @@ void sim_t::diff_memcpy(reg_t dest, void* src, size_t n) {
   }
 }
 
+#include "../../src/isa/riscv32/local-include/csrEnum.h"
+#include "repo/riscv/encoding.h"
+static void diff_riscv_get_csrs(void *diff_context) {
+  word_t *csrs = (word_t *)(diff_context);
+  int idx = 0;
+#define COPY_CSR(name, num, up) csrs[idx++] = state->csrmap[CSR_##up]->read();
+  CSR_NUM_LIST(COPY_CSR)
+#undef COPY_CSR
+}
+
 extern "C" {
 
 __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {
@@ -128,4 +138,7 @@ __EXPORT void difftest_raise_intr(uint64_t NO) {
   p->take_trap_public(t, state->pc);
 }
 
+#ifdef CONFIG_ISA_riscv
+__EXPORT void difftest_get_csr(word_t csrs[]) { diff_riscv_get_csrs(csrs); }
+#endif
 }

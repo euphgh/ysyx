@@ -21,10 +21,15 @@
 #include <utils.h>
 #include <difftest-def.h>
 
+#include "cpu/decode.h"
+
 void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) = NULL;
 void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
 void (*ref_difftest_exec)(uint64_t n) = NULL;
 void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
+#ifdef CONFIG_ISA_riscv
+void (*ref_difftest_get_csr)(word_t csrs[]) = NULL;
+#endif
 
 #ifdef CONFIG_DIFFTEST
 
@@ -78,6 +83,11 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
   ref_difftest_raise_intr = dlsym(handle, "difftest_raise_intr");
   assert(ref_difftest_raise_intr);
 
+#ifdef CONFIG_ISA_riscv
+  ref_difftest_get_csr = dlsym(handle, "difftest_get_csr");
+  assert(ref_difftest_get_csr);
+#endif
+
   void (*ref_difftest_init)(int) = dlsym(handle, "difftest_init");
   assert(ref_difftest_init);
 
@@ -126,6 +136,11 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
   ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
 
   checkregs(&ref_r, pc);
+  if (unlikely(isa_decode.isa.csrChange)) {
+    if (!isa_difftest_checkcsrs()) {
+      isa_difftest_showCSRerr();
+    }
+  }
 }
 #else
 void init_difftest(char *ref_so_file, long img_size, int port) { }

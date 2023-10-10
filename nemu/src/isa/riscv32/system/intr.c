@@ -53,6 +53,7 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
   IFDEF(CONFIG_ETRACE,
         traceWrite("[E] trigger %s to " FMT_WORD, GetStr(NO), mtvec.base << 2));
   cpu.pc = mtvec->base << 2;
+  isa_decode.isa.csrChange = true;
 }
 
 word_t isa_query_intr() { return INTR_EMPTY; }
