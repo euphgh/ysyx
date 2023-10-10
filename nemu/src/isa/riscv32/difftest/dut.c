@@ -39,10 +39,9 @@ bool isa_difftest_checkcsrs() {
   ref_difftest_get_csr(csrs);
   bool res = true;
   int idx = 0;
-#define CMP_CSR(name, num, ...) res &= csrs[idx++] == name->val;
+#define CMP_CSR(name, num, ...) res &= csrs[idx++] == name##Read();
   CSR_NUM_LIST(CMP_CSR)
 #undef CMP_CSR
-  Log("check csr = %d at PC " FMT_WORD, res, isa_decode.pc);
   return res;
 }
 
@@ -59,7 +58,7 @@ static void showErrorReg(const char *name, word_t ref, word_t dut) {
 
 void isa_difftest_showCSRerr() {
 #define CMP_CSR(name, num, ...)                                                \
-  if (csrs[idx++] != name->val) {                                              \
+  if (csrs[idx++] != name##Read()) {                                           \
     showErrorReg(#name, csrs[idx - 1], name->val);                             \
   }
   int idx = 0;

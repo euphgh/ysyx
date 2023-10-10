@@ -26,7 +26,9 @@
 #define Mw vaddr_write
 void ftrace(ras_t ras, vaddr_t dnpc, vaddr_t pc);
 ExcCode ecallCode();
-static word_t eretInstr();
+static void eretInstr();
+static void csrrxiInstr(int num, int rd, csrOp op);
+static void csrrxInstr(int num, int rd, word_t src1, csrOp op);
 static Decode *s = &isa_decode;
 jmp_buf isa_except_buf = {};
 #define rasJal()                                                               \
@@ -175,15 +177,15 @@ static int decode_exec() {
 
 
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, isa_raise_intr(ecallCode(), s->pc));
-  INSTPAT("0011000 00010 00000 000 00000 11100 11", m/sret , N, cpu.pc = eretInstr());
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", m/sret , N, eretInstr());
 
-  INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I, s->isa.csrChange=true; csrRW(imm, &cpu.gpr[rd], src1, csrWAR));
-  INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I, s->isa.csrChange=true; csrRW(imm, &cpu.gpr[rd], src1, csrSET));
-  INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , I, s->isa.csrChange=true; csrRW(imm, &cpu.gpr[rd], src1, csrCLR));
+  INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I, csrrxInstr(imm, rd, src1, csrWAR));
+  INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I, csrrxInstr(imm, rd, src1, csrSET));
+  INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc  , I, csrrxInstr(imm, rd, src1, csrCLR));
 
-  INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I, s->isa.csrChange=true; csrRW(imm, &cpu.gpr[rd], s->isa.inst.r.rs1, csrWAR));
-  INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I, s->isa.csrChange=true; csrRW(imm, &cpu.gpr[rd], s->isa.inst.r.rs1, csrSET));
-  INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , I, s->isa.csrChange=true; csrRW(imm, &cpu.gpr[rd], s->isa.inst.r.rs1, csrCLR));
+  INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I, csrrxiInstr(imm, rd, csrWAR));
+  INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I, csrrxiInstr(imm, rd, csrSET));
+  INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , I, csrrxiInstr(imm, rd, csrCLR));
 
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
@@ -235,7 +237,7 @@ inline ExcCode ecallCode() {
                                 : EC_EnvCallFromU;
 }
 
-static word_t eretInstr() {
+static void eretInstr() {
 #define xRet(x)                                                                \
   if (mstatus->mpp != PRI_M)                                                   \
     mstatus->mprv = false;                                                     \
@@ -243,28 +245,31 @@ static word_t eretInstr() {
   machineMode = x##status->x##pp;                                              \
   x##status->x##pie = true;                                                    \
   x##status->x##pp = PRI_U;                                                    \
-  backAddr = x##epc->val;                                                      \
+  cpu.pc = x##epc->val;                                                        \
   break
 
-  vaddr_t backAddr = mepc->val;
+  s->isa.csrChange = true;
   switch (machineMode) {
   case PRI_M:
-    if (mstatus->mpp == PRI_M)
-      mstatus->mprv = 0;
-    mstatus->mie = mstatus->mpie;
-    machineMode = mstatus->mpp;
-    mstatus->mpie = 1;
-    mstatus->mpp = PRI_U;
-    backAddr = mepc->val;
-    break;
+    xRet(m);
   case PRI_S:
     xRet(s);
   default:
     panic("xRet in mode %d", machineMode);
   }
 #undef xRet
-  IFDEF(CONFIG_ETRACE, traceWrite("[E] eret to " FMT_WORD, backAddr));
+  IFDEF(CONFIG_ETRACE, traceWrite("[E] eret to " FMT_WORD, cpu.pc));
+}
 
+inline static void csrrxInstr(int num, int rd, word_t src1, csrOp op) {
   s->isa.csrChange = true;
-  return backAddr;
+  word_t *dst = rd ? &cpu.gpr[rd] : NULL;
+  word_t *rs = s->isa.inst.r.rs1 ? &src1 : NULL;
+  csrRW(num, dst, rs, op);
+}
+inline static void csrrxiInstr(int num, int rd, csrOp op) {
+  s->isa.csrChange = true;
+  word_t *dst = rd ? &cpu.gpr[rd] : NULL;
+  word_t rs = s->isa.inst.r.rs1;
+  csrRW(num, dst, &rs, op);
 }

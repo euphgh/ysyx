@@ -83,11 +83,6 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
   ref_difftest_raise_intr = dlsym(handle, "difftest_raise_intr");
   assert(ref_difftest_raise_intr);
 
-#ifdef CONFIG_ISA_riscv
-  ref_difftest_get_csr = dlsym(handle, "difftest_get_csr");
-  assert(ref_difftest_get_csr);
-#endif
-
   void (*ref_difftest_init)(int) = dlsym(handle, "difftest_init");
   assert(ref_difftest_init);
 
@@ -99,6 +94,13 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
   ref_difftest_init(port);
   ref_difftest_memcpy(RESET_VECTOR, guest_to_host(RESET_VECTOR), img_size, DIFFTEST_TO_REF);
   ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
+#ifdef CONFIG_ISA_riscv
+  ref_difftest_get_csr = dlsym(handle, "difftest_get_csr");
+  assert(ref_difftest_get_csr);
+  if (!isa_difftest_checkcsrs()) {
+    isa_difftest_showCSRerr();
+  }
+#endif
 }
 
 static void checkregs(CPU_state *ref, vaddr_t pc) {
