@@ -1,4 +1,5 @@
 #include "common.h"
+#include "debug.h"
 #include <sys/queue.h>
 
 #define FITEM_NR 1024
@@ -34,7 +35,13 @@ int compUInt64(const void *l, const void *r) {
   return (*da > *db) - (*da < *db);
 }
 
-void initFtrace(const char *elfName) { load_elf_info(elfName, addItem); }
+void initFtrace(const char *elfName) {
+  if (elfName == NULL) {
+    warn("elf file argument is NULL");
+  } else {
+    load_elf_info(elfName, addItem);
+  }
+}
 
 inline static int binarySearch(vaddr_t key, vaddr_t arr[]) {
   int low = 0;
