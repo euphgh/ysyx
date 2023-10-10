@@ -58,7 +58,7 @@ bool isa_mmu_success();
 const char *isa_mmu_errorInfo();
 
 // interrupt/exception
-void isa_raise_intr(word_t NO, vaddr_t epc);
+void isa_raise_intr(word_t NO, vaddr_t tval);
 void isa_init_csr();
 #define INTR_EMPTY ((word_t)-1)
 word_t isa_query_intr();
