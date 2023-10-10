@@ -63,18 +63,7 @@ class Field:
 
 
 srcVarDef = "{name:s}_t* {name:s}"
-headTypeDef = (
-    """
-typedef union {{
-    struct {{
-        {fields:s}
-    }};
-    word_t val;
-}} {name:s}_t;
-extern """
-    + srcVarDef
-    + ";"
-)
+
 csrOpFunc = "bool {name:s}RW(word_t* rd, word_t src1, csrOp op)"
 csrOpDefFmt = csrOpFunc + ";"
 
@@ -122,8 +111,6 @@ class CtrlStatReg:
                 bitsList[bits] = idx
 
         startBits = 0
-        if fields.__len__() == 0:
-            return
         for i in range(1, WORD_LEN + 1):
             if bitsList[i - 1] != bitsList[i]:
                 endBits = i - 1
@@ -141,6 +128,9 @@ class CtrlStatReg:
                 )
                 startBits = i
 
+    def isValField(self) -> bool:
+        return (self.fields.__len__() == 1) and (self.fields[0].name == "val")
+
     def __str__(self) -> str:
         return "name = {:s}\nnum = 0x{:x}\nfields = {{\n{:s}\n}}".format(
             self.name,
@@ -149,8 +139,23 @@ class CtrlStatReg:
         )
 
     def genTypeDef(self) -> str:
-        structList = [field.structDef() for field in self.fields]
-        return headTypeDef.format(name=self.name, fields="\n".join(structList))
+        headTypeDef = (
+            """
+        typedef union {{ {fields:s}
+            word_t val;
+        }} {name:s}_t;
+        extern """
+            + srcVarDef
+            + ";"
+        )
+        if self.isValField():
+            return headTypeDef.format(name=self.name, fields="")
+        structFields = "\n".join([field.structDef() for field in self.fields])
+        structDef = f"""
+        struct {{
+            {structFields}
+        }}; """
+        return headTypeDef.format(name=self.name, fields=structDef)
 
     def genVarDef(self) -> str:
         fmt = ""
@@ -191,16 +196,28 @@ class CtrlStatReg:
         }}"""
         writeLines = [field.writeLine(self.name) for field in self.fields]
         writeCode = "\n".join(writeLines)
-        if (str.strip(writeCode) == ""):
-            return "inline static bool {csrName:s}Write(word_t val) {{ return true; }}".format(csrName = self.name)
+        if str.strip(writeCode) == "":
+            return "inline static bool {csrName:s}Write(word_t val) {{ return true; }}".format(
+                csrName=self.name
+            )
         else:
             return csrWriteFmt.format(csrName=self.name, code=writeCode)
 
     def genInitCode(self) -> str:
+        if self.autoPtr == False:
+            return ""
         initValue = 0
         for field in self.fields:
             initValue = initValue | field.initValue()
         return "{:s}->val = 0x{:x};".format(self.name, initValue)
+
+    def genNumMacro(self) -> str:
+        return "_({:s}, {:#x}, {:s})\\".format(
+            self.name, self.num, str.upper(self.name)
+        )
+
+    def genEnumMacro(self) -> str:
+        return '_("{name:s}", RC_{name:s})\\'.format(name=self.name)
 
 
 class PaserCSR:
@@ -225,6 +242,14 @@ class PaserCSR:
         initCode = [csr.genInitCode() for csr in self.allCSR]
         code.append(csrInitImpFmt.format(code="\n".join(initCode)))
         return "\n".join(code)
+
+    def macroCode(self) -> str:
+        return "#define CSR_NUM_LIST(_) " + "\n".join(
+            [csr.genNumMacro() for csr in self.allCSR]
+        )
+
+    def incCode(self) -> str:
+        return "\n".join([csr.genEnumMacro() for csr in self.allCSR])
 
 
 def FLD(
@@ -257,7 +282,17 @@ def CSR(
     fields: list[Field] = [],
     beforeRead: str = "",
     autoPtr: bool = True,
+    fspec: str = "",
+    init: int = 0,
+    legalFunc: str = "",
 ) -> CtrlStatReg:
     assert name != ""
     assert num != -1
+    if fields.__len__() == 0:
+        assert fspec != "", "field spec should not be empty when no field"
+        fields = [Field("val", WORD_LEN - 1, 0, FieldSpec[fspec], init, legalFunc)]
+    else:
+        assert fspec == "", "field spec should be empty when fields not empty"
+        assert init == 0, "init should be empty when fields not empty"
+        assert legalFunc == "", "legalFunc should be empty when fields not empty"
     return CtrlStatReg(name, num, fields, beforeRead, autoPtr)

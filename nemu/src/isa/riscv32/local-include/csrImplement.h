@@ -53,8 +53,18 @@ inline static bool stvecWrite(word_t val) {
   stvec->base = newVar.base;
   return true;
 }
-inline static bool mepcWrite(word_t val) { return true; }
-inline static bool sepcWrite(word_t val) { return true; }
+
+inline static bool mepcWrite(word_t val) {
+  mepc_t newVar = {.val = val};
+  mepc->val = newVar.val;
+  return true;
+}
+
+inline static bool sepcWrite(word_t val) {
+  sepc_t newVar = {.val = val};
+  sepc->val = newVar.val;
+  return true;
+}
 
 inline static bool mcauseWrite(word_t val) {
   mcause_t newVar = {.val = val};
@@ -69,9 +79,24 @@ inline static bool scauseWrite(word_t val) {
 
   return true;
 }
-inline static bool medelegWrite(word_t val) { return true; }
-inline static bool mtvalWrite(word_t val) { return true; }
-inline static bool stvalWrite(word_t val) { return true; }
+
+inline static bool medelegWrite(word_t val) {
+  medeleg_t newVar = {.val = val};
+  medeleg->val = newVar.val;
+  return true;
+}
+
+inline static bool mtvalWrite(word_t val) {
+  mtval_t newVar = {.val = val};
+  mtval->val = newVar.val;
+  return true;
+}
+
+inline static bool stvalWrite(word_t val) {
+  stval_t newVar = {.val = val};
+  stval->val = newVar.val;
+  return true;
+}
 
 inline static bool mstatusWrite(word_t val) {
   mstatus_t newVar = {.val = val};
@@ -109,8 +134,18 @@ inline static bool sstatusWrite(word_t val) {
 
   return true;
 }
-inline static bool mscratchWrite(word_t val) { return true; }
-inline static bool sscratchWrite(word_t val) { return true; }
+
+inline static bool mscratchWrite(word_t val) {
+  mscratch_t newVar = {.val = val};
+  mscratch->val = newVar.val;
+  return true;
+}
+
+inline static bool sscratchWrite(word_t val) {
+  sscratch_t newVar = {.val = val};
+  sscratch->val = newVar.val;
+  return true;
+}
 
 inline static bool satpWrite(word_t val) {
   satp_t newVar = {.val = val};
@@ -236,7 +271,7 @@ void csrInit() {
   mtval->val = 0x0;
   stval->val = 0x0;
   mstatus->val = 0xa00001800;
-  sstatus->val = 0x200000000;
+
   mscratch->val = 0x0;
   sscratch->val = 0x0;
   satp->val = 0x0;

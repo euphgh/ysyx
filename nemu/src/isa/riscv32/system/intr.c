@@ -14,6 +14,7 @@
  ***************************************************************************************/
 #include "../local-include/csr.h"
 #include "cpu/decode.h"
+#include "isa.h"
 
 #include <setjmp.h>
 
@@ -33,7 +34,7 @@ static const char *IntStr[] = {InterruptList(StrArrDef)};
 
 void isa_raise_intr(word_t NO, vaddr_t tval) {
   if (BITS(medeleg->val, NO, NO) == 0) {
-    mepc->val = cpu.pc;
+    mepc->val = isa_decode.pc;
     mcause->val = NO;
     mstatus->mpp = machineMode;
     mstatus->mpie = mstatus->mie;
@@ -41,7 +42,7 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
     mtval->val = tval;
     machineMode = PRI_M;
   } else {
-    sepc->val = cpu.pc;
+    sepc->val = isa_decode.pc;
     scause->val = NO;
     sstatus->spp = machineMode;
     sstatus->spie = sstatus->sie;
@@ -50,8 +51,8 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
     machineMode = PRI_S;
   }
 
-  IFDEF(CONFIG_ETRACE,
-        traceWrite("[E] trigger %s to " FMT_WORD, GetStr(NO), mtvec.base << 2));
+  IFDEF(CONFIG_ETRACE, traceWrite("[E] trigger %s to " FMT_WORD, GetStr(NO),
+                                  mtvec->base << 2));
   cpu.pc = mtvec->base << 2;
   isa_decode.isa.csrChange = true;
 }

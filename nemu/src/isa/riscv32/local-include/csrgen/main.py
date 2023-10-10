@@ -41,18 +41,14 @@ mcauseFields = [
 AllCRS: list[CtrlStatReg] = [
     CSR("mtvec", 0x305, mtvecFields),
     CSR("stvec", 0x105, mtvecFields),
-
-    CSR("mepc", 0x341),
-    CSR("sepc", 0x141),
-
+    # xEPC: save trap pc
+    CSR("mepc", 0x341, fspec="WARL"),
+    CSR("sepc", 0x141, fspec="WARL"),
     CSR("mcause", 0x342, mcauseFields),
     CSR("scause", 0x142, mcauseFields),
-
-    CSR("medeleg", 0x302),
-
-    CSR("mtval", 0x343),
-    CSR("stval", 0x143),
-
+    CSR("medeleg", 0x302, fspec="WARL"),
+    CSR("mtval", 0x343, fspec="WARL"),
+    CSR("stval", 0x143, fspec="WARL"),
     CSR("mstatus", 0x300, mstatusFields),
     CSR(
         "sstatus",
@@ -72,15 +68,17 @@ AllCRS: list[CtrlStatReg] = [
         autoPtr=False,
         beforeRead="sstatusRead",
     ),
-
-    CSR("mscratch", 0x340),
-    CSR("sscratch", 0x140),
-
-    CSR("satp", 0x180,[
-        FLD("mode", 63, 60, "WARL", 0x0, legalFunc="isLegalPageMode"),
-        FLD("asid", 59, 44, "WARL", 0x0),
-        FLD("ppn", 43, 0, "WARL", 0x0),
-    ]),
+    CSR("mscratch", 0x340, fspec="WARL"),
+    CSR("sscratch", 0x140, fspec="WARL"),
+    CSR(
+        "satp",
+        0x180,
+        [
+            FLD("mode", 63, 60, "WARL", 0x0, legalFunc="isLegalPageMode"),
+            FLD("asid", 59, 44, "WARL", 0x0),
+            FLD("ppn", 43, 0, "WARL", 0x0),
+        ],
+    ),
 ]
 
 from sys import argv
@@ -91,3 +89,7 @@ if __name__ == "__main__":
         print(paser.headCode())
     elif argv[1] == "s":
         print(paser.srcCode())
+    elif argv[1] == "e":
+        print(paser.macroCode())
+    elif argv[1] == "m":
+        print(paser.incCode())

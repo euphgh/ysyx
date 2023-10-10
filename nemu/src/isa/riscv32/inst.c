@@ -249,7 +249,14 @@ static word_t eretInstr() {
   vaddr_t backAddr = mepc->val;
   switch (machineMode) {
   case PRI_M:
-    xRet(m);
+    if (mstatus->mpp == PRI_M)
+      mstatus->mprv = 0;
+    mstatus->mie = mstatus->mpie;
+    machineMode = mstatus->mpp;
+    mstatus->mpie = 1;
+    mstatus->mpp = PRI_U;
+    backAddr = mepc->val;
+    break;
   case PRI_S:
     xRet(s);
   default:
@@ -257,5 +264,7 @@ static word_t eretInstr() {
   }
 #undef xRet
   IFDEF(CONFIG_ETRACE, traceWrite("[E] eret to " FMT_WORD, backAddr));
+
+  s->isa.csrChange = true;
   return backAddr;
 }

@@ -14,6 +14,7 @@
 ***************************************************************************************/
 
 #include "local-include/reg.h"
+#include "local-include/csr.h"
 #include <isa.h>
 
 const char *regs[] = {"$0", "ra", "sp",  "gp",  "tp", "t0", "t1", "t2",
@@ -36,29 +37,46 @@ int isa_reg_str2code(const char *name) {
 #define CompAssign(str, code)                                                  \
   if (strcmp(str, name) == 0)                                                  \
     return code;
+
+  /* GPR name */
   for (int i = 0; i < 32; i++)
     CompAssign(regs[i], i);
 
-  CompAssign("pc", RC_PC);
-  return -1;
+  /* PC name */
+  CompAssign("pc", RC_pc);
+
+  /* CSR name */
+#define CompNameAssign(rname, num, ...) CompAssign(#rname, RC_##rname)
+  CSR_NUM_LIST(CompNameAssign)
+#undef CompNameAssign
 #undef CompAssign
+  return -1;
 }
+
 bool isa_reg_code2val(int rcode, word_t *value) {
+  /* GPR */
   if ((rcode > 0) && (rcode < 32)) {
     *value = gpr(rcode);
     return true;
   }
 
+  switch (rcode) {
+    /* PC */
 #define CaseAssign(code, var)                                                  \
   case code:                                                                   \
     *value = var;                                                              \
     return true
-  switch (rcode) {
-    CaseAssign(RC_PC, cpu.pc);
+    CaseAssign(RC_pc, cpu.pc);
+
+    /* CSR */
+#define CaseCSRAssign(name, num, ...) CaseAssign(RC_##name, name->val);
+    CSR_NUM_LIST(CaseCSRAssign)
+#undef CaseCSRAssign
+#undef CaseAssign
+
   default:
     return false;
   }
-#undef CaseAssign
 }
 
 const char *isa_reg_code2str(int rcode) {
@@ -70,7 +88,12 @@ const char *isa_reg_code2str(int rcode) {
   case code:                                                                   \
     return str
   switch (rcode) {
-    CaseAssign(RC_PC, "pc");
+    CaseAssign(RC_pc, "pc");
+
+#define CaseCSRAssign(name, num, ...) CaseAssign(RC_##name, #name);
+    CSR_NUM_LIST(CaseCSRAssign)
+#undef CaseCSRAssign
+#undef CaseAssign
   default:
     return NULL;
   }

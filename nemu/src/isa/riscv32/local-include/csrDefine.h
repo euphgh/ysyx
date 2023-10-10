@@ -18,13 +18,11 @@ typedef union {
 extern stvec_t *stvec;
 
 typedef union {
-  struct {};
   word_t val;
 } mepc_t;
 extern mepc_t *mepc;
 
 typedef union {
-  struct {};
   word_t val;
 } sepc_t;
 extern sepc_t *sepc;
@@ -48,19 +46,16 @@ typedef union {
 extern scause_t *scause;
 
 typedef union {
-  struct {};
   word_t val;
 } medeleg_t;
 extern medeleg_t *medeleg;
 
 typedef union {
-  struct {};
   word_t val;
 } mtval_t;
 extern mtval_t *mtval;
 
 typedef union {
-  struct {};
   word_t val;
 } stval_t;
 extern stval_t *stval;
@@ -122,13 +117,11 @@ typedef union {
 extern sstatus_t *sstatus;
 
 typedef union {
-  struct {};
   word_t val;
 } mscratch_t;
 extern mscratch_t *mscratch;
 
 typedef union {
-  struct {};
   word_t val;
 } sscratch_t;
 extern sscratch_t *sscratch;

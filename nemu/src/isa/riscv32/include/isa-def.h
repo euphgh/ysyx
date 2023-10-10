@@ -24,12 +24,14 @@ typedef struct {
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
 
 // regs code
-typedef enum {
-  RC_PC = 32,
-} riscv64_Rcode;
+#include "../local-include/csrEnum.h"
+#define CSR_ENUM_DEF(name, num, ...) RC_##name = num,
+typedef enum { RC_pc = 32, CSR_NUM_LIST(CSR_ENUM_DEF) } riscv64_Rcode;
+#undef CSR_ENUM_DEF
 
 // decode
 typedef struct {
+  bool csrChange;
   union {
     struct {
       word_t opcode : 7;
