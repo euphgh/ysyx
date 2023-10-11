@@ -34,7 +34,14 @@ Context* __am_irq_handle(Context *c) {
     assert(c != NULL);
   }
 
-  return c;
+  return c; // must is a stack point, pointing a Context
+  /*
+   x31 high addr
+  ...
+   x2
+   x1
+c->x0  low addr
+  */
 }
 
 extern void __am_asm_trap(void);

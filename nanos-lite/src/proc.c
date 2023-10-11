@@ -26,10 +26,11 @@ void context_uload(PCB *pcb, const char *fileName, char *const argv[],
 void init_proc() {
   Log("Initializing processes...");
   void context_kload(PCB * pcb, void (*entry)(void *), void *arg);
-  context_kload(&pcb[0], hello_fun, "foo");
-  char *argv[] = {"Hello", "World", NULL};
-  char *envp[] = {"FOO=BAR", NULL};
-  context_uload(&pcb[1], "/bin/args-test", argv, envp);
+  // context_kload(&pcb[0], hello_fun, "foo");
+  char *argv[] = {"/bin/exec-test", NULL};
+  char *envp[] = {NULL};
+  // context_uload(&pcb[1], "/bin/args-test", argv, envp);
+  context_uload(&pcb[0], "/bin/exec-test", argv, envp);
   switch_boot_pcb();
 }
 
@@ -44,7 +45,8 @@ Context *schedule(Context *prev) {
   current->cp = prev;
 
   // always select pcb[0] as the new process
-  current = (current == &pcb[0] ? &pcb[1] : &pcb[0]);
+  // current = (current == &pcb[0] ? &pcb[1] : &pcb[0]);
+  current = &pcb[0];
 
   // then return the new context
   return current->cp;

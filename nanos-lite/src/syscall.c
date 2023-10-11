@@ -17,6 +17,7 @@ static const char *getSysCallStr(int num) {
 extern const char *fs_pathname(int fd);
 extern void uptimer_read(size_t *sec, size_t *us);
 extern void naive_uload(PCB *pcb, const char *filename);
+int execCall(const char *pathname, char *const argv[], char *const envp[]);
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
@@ -24,16 +25,17 @@ void do_syscall(Context *c) {
   a[2] = c->GPR3;
   a[3] = c->GPR4;
 #ifdef CONFIG_STRACE
-  char logbuf[64];
+#define STRACE_BUF_SIZE 128
+  char logbuf[STRACE_BUF_SIZE];
   if (a[0] == SYS_close || a[0] == SYS_read || a[0] == SYS_write ||
       a[0] == SYS_lseek) {
-    snprintf(logbuf, 64, "%s[%s, %lx(%lu), %lx(%lu)]", getSysCallStr(a[0]),
-             fs_pathname(a[1]), a[2], a[2], a[3], a[3]);
+    snprintf(logbuf, STRACE_BUF_SIZE, "%s[%s, %lx(%lu), %lx(%lu)]",
+             getSysCallStr(a[0]), fs_pathname(a[1]), a[2], a[2], a[3], a[3]);
   } else if (a[0] == SYS_open) {
-    snprintf(logbuf, 64, "%s[%s, %lx(%lu), %lx(%lu)]", getSysCallStr(a[0]),
-             (const char *)a[1], a[2], a[2], a[3], a[3]);
+    snprintf(logbuf, STRACE_BUF_SIZE, "%s[%s, %lx(%lu), %lx(%lu)]",
+             getSysCallStr(a[0]), (const char *)a[1], a[2], a[2], a[3], a[3]);
   } else {
-    snprintf(logbuf, 64, "%s[%lx(%lu), %lx(%lu), %lx(%lu)]",
+    snprintf(logbuf, STRACE_BUF_SIZE, "%s[%lx(%lu), %lx(%lu), %lx(%lu)]",
              getSysCallStr(a[0]), a[1], a[1], a[2], a[2], a[3], a[3]);
   }
 #endif
@@ -63,8 +65,10 @@ void do_syscall(Context *c) {
     c->GPRx = fs_write(a[1], (void *)a[2], a[3]);
     break;
   case SYS_execve:
-    naive_uload(NULL, (const char *)a[1]);
-    break;
+#ifdef CONFIG_STRACE
+    Log("%s no ret", logbuf, c->GPRx, c->GPRx);
+#endif
+    execCall((const char *)a[1], (char *const *)a[2], (char *const *)a[3]);
   case SYS_read:
     c->GPRx = fs_read(a[1], (void *)a[2], a[3]);
     break;

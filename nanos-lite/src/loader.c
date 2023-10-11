@@ -107,21 +107,17 @@ void context_uload(PCB *pcb, const char *fileName, char *const argv[],
 }
 
 int execCall(const char *pathname, char *const argv[], char *const envp[]) {
-  PCB *pcb = current;
-  uintptr_t entry = loader(pcb, pathname);
-  Area sArea = {.end = pcb->stack + STACK_SIZE, .start = pcb->stack};
-  Context *ctx = ucontext(NULL, sArea, (void *)entry);
-  void *sp = heap.end;
-  PushArr(sp, argv);
-  PushArr(sp, envp);
-  void *ptr = align_down(sp, _Alignof(char *));
-  ptr = memcpy(ptr - sizeof(envpd), envpd, sizeof(envpd));
-  ptr = memcpy(ptr - sizeof(argvd), argvd, sizeof(argvd));
-  int *argcPtr = ptr - sizeof(int);
-  *argcPtr = argvc;
-  ctx->GPRx = (uintptr_t)argcPtr;
-  pcb->cp = ctx;
+  /* new user stack */
+  void *stackTop = new_page(8);
+  Area sArea = {.end = stackTop + STACK_SIZE, .start = stackTop};
 
+  /* construct user context with specificed stack in `current` pcb */
+  context_uload_stack(sArea, current, pathname, argv, envp);
+
+  /* proc switch */
+  void switch_boot_pcb();
+  switch_boot_pcb();
   yield();
-  return 0;
+
+  panic("never arrive here");
 }
