@@ -67,8 +67,9 @@ static void *align_down(void *ptr, size_t alignment) {
 #define PushArr(sp, arr)                                                       \
   int arr##c = 0;                                                              \
   do {                                                                         \
-    while (arr[arr##c])                                                        \
-      arr##c++;                                                                \
+    if (arr)                                                                   \
+      while (arr[arr##c])                                                      \
+        arr##c++;                                                              \
   } while (0);                                                                 \
   char *arr##d[arr##c + 1];                                                    \
   do {                                                                         \

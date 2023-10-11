@@ -8,9 +8,11 @@ int main(int argc, char *argv[], char *envp[]) {
       printf("argv[%lu] = %s\n", i, argv[i]);
     }
     int i = 0;
-    while (envp[i]) {
-      printf("envp[%d] = %s\n", i, envp[i]);
-      i++;
+    if (envp) {
+      while (envp[i]) {
+        printf("envp[%d] = %s\n", i, envp[i]);
+        i++;
+      }
     }
   }
   return 0;
