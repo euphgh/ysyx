@@ -81,21 +81,28 @@ static void *align_down(void *ptr, size_t alignment) {
     arr##d[arr##c] = NULL;                                                     \
   } while (0)
 
-void context_uload(PCB *pcb, const char *fileName, char *const argv[],
-                   char *const envp[]) {
+void context_uload_stack(Area stack, PCB *pcb, const char *fileName,
+                         char *const argv[], char *const envp[]) {
   uintptr_t entry = loader(pcb, fileName);
-  Area sArea = {.end = pcb->stack + STACK_SIZE, .start = pcb->stack};
-  Context *ctx = ucontext(NULL, sArea, (void *)entry);
+  Context *ctx = ucontext(NULL, stack, (void *)entry);
   void *sp = heap.end;
   PushArr(sp, argv);
   PushArr(sp, envp);
-  void *ptr = align_down(sp, _Alignof(char *));
+  void *ptr = align_down(sp, 2 * _Alignof(void *));
+  if ((sizeof(envpd) + sizeof(argvd) + sizeof(void *)) % 16)
+    ptr -= sizeof(void *);
   ptr = memcpy(ptr - sizeof(envpd), envpd, sizeof(envpd));
   ptr = memcpy(ptr - sizeof(argvd), argvd, sizeof(argvd));
-  int *argcPtr = ptr - sizeof(int);
+  uintptr_t *argcPtr = ptr - sizeof(uintptr_t);
   *argcPtr = argvc;
   ctx->GPRx = (uintptr_t)argcPtr;
   pcb->cp = ctx;
+}
+
+void context_uload(PCB *pcb, const char *fileName, char *const argv[],
+                   char *const envp[]) {
+  Area sArea = {.end = pcb->stack + STACK_SIZE, .start = pcb->stack};
+  context_uload_stack(sArea, pcb, fileName, argv, envp);
 }
 
 int execCall(const char *pathname, char *const argv[], char *const envp[]) {
