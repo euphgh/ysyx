@@ -57,6 +57,7 @@ static void showErrorReg(const char *name, word_t ref, word_t dut) {
 }
 
 void isa_difftest_showCSRerr() {
+  error("CSR diff when pc = " FMT_WORD, isa_decode.pc);
 #define CMP_CSR(name, num, ...)                                                \
   if (csrs[idx++] != name##Read()) {                                           \
     showErrorReg(#name, csrs[idx - 1], name->val);                             \

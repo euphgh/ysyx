@@ -94,8 +94,11 @@ void traceWrite(const char *fmt, ...) {
   if (likely(INC_PTR(endPtr) == startPtr))
     INC_PTR(startPtr);
 
-  if (unlikely(time(NULL) - lastWrite > 1))
+  time_t this = time(NULL);
+  if (unlikely(this - lastWrite > 1)) {
+    lastWrite = this;
     traceFlush();
+  }
 }
 #else
 

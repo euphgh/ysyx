@@ -141,6 +141,8 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
   if (unlikely(isa_decode.isa.csrChange)) {
     if (!isa_difftest_checkcsrs()) {
       isa_difftest_showCSRerr();
+      nemu_state.state = NEMU_ABORT;
+      nemu_state.halt_pc = pc;
     }
   }
 }
