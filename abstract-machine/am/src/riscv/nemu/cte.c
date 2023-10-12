@@ -48,10 +48,25 @@ extern void __am_asm_trap(void);
 
 bool cte_init(Context*(*handler)(Event, Context*)) {
   // initialize exception entry
-  asm volatile("csrw mtvec, %0" : : "r"(__am_asm_trap));
+  asm volatile("csrw mtvec, %0;\
+                csrw stvec, %0;\
+                "
+               :
+               : "r"(__am_asm_trap));
 
   // register event handler
   user_handler = handler;
+
+  /* use ret to S mode */
+  uintptr_t mpp = 1 << 11;
+  uintptr_t tmp;
+  asm volatile("csrrs zero, mstatus, %1; \
+                auipc %0, 0xc;\
+                csrrw zero, mepc, %0; \
+                mret;"
+               : "=r"(tmp)
+               : "r"(mpp)
+               :);
 
   return true;
 }
