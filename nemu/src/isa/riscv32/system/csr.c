@@ -3,9 +3,9 @@ Plevel machineMode;
 static word_t whichOp(word_t csr, word_t src, csrOp op) {
   switch (op) {
   case csrSET:
-    return satp->val | src;
+    return csr | src;
   case csrCLR:
-    return satp->val & ~src;
+    return csr & ~src;
   case csrWAR:
     return src;
   }
