@@ -45,7 +45,9 @@ typedef union {
 } Sv39Pte;
 
 static Plevel memPLv;
+extern bool mtraceTrans;
 int isa_mmu_check(vaddr_t foo, int len, int type) {
+  mtraceTrans = false;
   /* set privilege of mem access */
   memPLv = machineMode;
   if (type != MEM_TYPE_IFETCH && mstatus->mprv)
@@ -56,6 +58,7 @@ int isa_mmu_check(vaddr_t foo, int len, int type) {
     return MMU_DIRECT;
   Assert(satp->mode == SatpModeSv39, "memPLv = %d, satp->mode = %d", memPLv,
          satp->mode);
+  mtraceTrans = true;
   return MMU_TRANSLATE;
 }
 

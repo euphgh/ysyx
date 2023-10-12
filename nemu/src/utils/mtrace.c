@@ -2,6 +2,7 @@
 
 static char databuf[32];
 const char *mtraceVname;
+bool mtraceTrans;
 vaddr_t mtraceVaddr;
 void mtrace(const char *pname, paddr_t paddr, word_t data, int len) {
   uint8_t *bytes = (uint8_t *)&data;
@@ -19,6 +20,6 @@ void mtrace(const char *pname, paddr_t paddr, word_t data, int len) {
     }
   }
   databuf[24] = 0;
-  traceWrite("[M] %s(" FMT_WORD ")=>%s(" FMT_PADDR ")=%s", mtraceVname,
-             mtraceVaddr, pname, paddr, databuf);
+  traceWrite("[M] %s(" FMT_WORD ") %s %s(" FMT_PADDR ")=%s", mtraceVname,
+             mtraceVaddr, (mtraceTrans ? "trl" : "dir"), pname, paddr, databuf);
 }
