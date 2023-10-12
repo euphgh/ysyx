@@ -33,6 +33,9 @@ bool vaddr_success() { return true; }
     if (unlikely(addr & 0b111))                                                \
       goto exception;                                                          \
   }
+#define ADDR_ASSER(va, pa)                                                     \
+  Assert(BITS(va, 63, 39) == 0, "vaddr high not zero = " FMT_WORD, va);        \
+  Assert(pa == va, "vaddr(" FMT_WORD ") != paddr(" FMT_PADDR ")", va, pa);
 
 word_t vaddr_ifetch(vaddr_t addr, int len) {
 #ifdef CONFIG_MTRACE
@@ -42,6 +45,7 @@ word_t vaddr_ifetch(vaddr_t addr, int len) {
   paddr_t paddr = (isa_mmu_check(addr, len, MEM_TYPE_IFETCH) == MMU_TRANSLATE)
                       ? isa_mmu_translate(addr, len, MEM_TYPE_IFETCH)
                       : addr;
+  ADDR_ASSER(addr, paddr);
   word_t ret = paddr_read(paddr, len);
   if (addr & 0b11)
     goto exception;
@@ -60,6 +64,7 @@ word_t vaddr_read(vaddr_t addr, int len) {
                       ? isa_mmu_translate(addr, len, MEM_TYPE_READ)
                       : addr;
   word_t ret = paddr_read(paddr, len);
+  ADDR_ASSER(addr, paddr);
   PADDR_ALIGN_CHECK(len, paddr);
   return ret;
 exception:
@@ -75,6 +80,7 @@ void vaddr_write(vaddr_t addr, int len, word_t data) {
   paddr_t paddr = (isa_mmu_check(addr, len, MEM_TYPE_WRITE) == MMU_TRANSLATE)
                       ? isa_mmu_translate(addr, len, MEM_TYPE_WRITE)
                       : addr;
+  ADDR_ASSER(addr, paddr);
   paddr_write(paddr, len, data);
   PADDR_ALIGN_CHECK(len, paddr);
   return;
