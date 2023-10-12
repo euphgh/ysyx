@@ -15,7 +15,7 @@ mstatusFields = [
     # xPP
     FLD("spp", 8, 8, "WARL", 0b00),
     FLD("vs", 10, 9, "READ", 0x0),
-    FLD("mpp", 12, 11, "WARL", 0b11),
+    FLD("mpp", 12, 11, "WARL", 0x0),
     FLD("fs", 14, 13, "READ", 0x0),
     FLD("xs", 16, 15, "READ", 0x0),
     FLD("mprv", 17, 17, "WARL", 0x0),

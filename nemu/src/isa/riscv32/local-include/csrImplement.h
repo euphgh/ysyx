@@ -250,7 +250,7 @@ void csrInit() {
   medeleg->val = 0x0;
   mtval->val = 0x0;
   stval->val = 0x0;
-  mstatus->val = 0xa00001800;
+  mstatus->val = 0xa00000000;
 
   mscratch->val = 0x0;
   sscratch->val = 0x0;
