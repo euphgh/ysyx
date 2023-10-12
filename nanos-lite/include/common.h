@@ -6,7 +6,7 @@
 #define CONFIG_BATCH
 // #define CONFIG_MENU
 // #define CONFIG_STRACE
-// #define HAS_VME
+#define HAS_VME
 // #define MULTIPROGRAM
 // #define TIME_SHARING
 

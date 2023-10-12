@@ -1,20 +1,19 @@
+#include "debug.h"
 #include <memory.h>
 
 static void *pf = NULL;
 
 void* new_page(size_t nr_page) {
-  return NULL;
+  void *this = pf;
+  pf += nr_page * (1 << 12);
+  return this;
 }
 
 #ifdef HAS_VME
-static void* pg_alloc(int n) {
-  return NULL;
-}
+static void *pg_alloc(int n) { return new_page(n >> 12); }
 #endif
 
-void free_page(void *p) {
-  panic("not implement yet");
-}
+void free_page(void *p) { Log("free page %p", p); }
 
 /* The brk() system call handler. */
 int mm_brk(uintptr_t brk) {
