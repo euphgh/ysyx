@@ -26,7 +26,7 @@
 #define Mw vaddr_write
 void ftrace(ras_t ras, vaddr_t dnpc, vaddr_t pc);
 ExcCode ecallCode();
-static void eretInstr();
+static void eretInstr(Plevel retPlv);
 static void csrrxiInstr(int num, int rd, csrOp op);
 static void csrrxInstr(int num, int rd, word_t src1, csrOp op);
 static Decode *s = &isa_decode;
@@ -177,7 +177,10 @@ static int decode_exec() {
 
 
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, isa_raise_intr(ecallCode(), s->pc));
-  INSTPAT("0011000 00010 00000 000 00000 11100 11", m/sret , N, eretInstr());
+  INSTPAT("0001001 ????? ????? 000 00000 11100 11", sfence , N, );
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, eretInstr(PRI_M));
+  INSTPAT("0001000 00010 00000 000 00000 11100 11", sret   , N, eretInstr(PRI_S));
+  INSTPAT("0000000 00010 00000 000 00000 11100 11", uret   , N, eretInstr(PRI_U));
 
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I, csrrxInstr(imm, rd, src1, csrWAR));
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I, csrrxInstr(imm, rd, src1, csrSET));
@@ -237,7 +240,9 @@ inline ExcCode ecallCode() {
                                 : EC_EnvCallFromU;
 }
 
-static void eretInstr() {
+static void eretInstr(Plevel retPlv) {
+  if (retPlv != machineMode)
+    isa_raise_intr(EC_IllegalInstr, 0);
 #define xRet(x)                                                                \
   if (mstatus->mpp != PRI_M)                                                   \
     mstatus->mprv = false;                                                     \
@@ -249,7 +254,7 @@ static void eretInstr() {
   break
 
   s->isa.csrChange = true;
-  switch (machineMode) {
+  switch (retPlv) {
   case PRI_M:
     xRet(m);
   case PRI_S:
