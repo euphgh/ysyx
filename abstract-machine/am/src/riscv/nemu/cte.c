@@ -61,7 +61,8 @@ bool cte_init(Context*(*handler)(Event, Context*)) {
   uintptr_t mpp = 1 << 11;
   uintptr_t tmp;
   asm volatile("csrrs zero, mstatus, %1; \
-                auipc %0, 0xc;\
+                auipc %0, 0x0;\
+                addi  %0, %0, 0x10;\
                 csrrw zero, mepc, %0; \
                 mret;"
                : "=r"(tmp)
