@@ -96,9 +96,10 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
   /* Step2: Calculate pte address and load pte */
   word_t base = satp->ppn * PAGE_SIZE;
   Sv39Vaddr sv39va = {.val = vaddr};
-  MMU_ASSERT(sv39va.vpn >> 26 ? ~sv39va.ext : sv39va.ext, "vaddr = %lx", vaddr);
+  MMU_ASSERT((sv39va.vpn >> 26 ? ~sv39va.ext : sv39va.ext) == 0, "vaddr = %lx",
+             vaddr);
   for (int pageLv = 2; pageLv >= 0; pageLv--) {
-    base += BITS(sv39va.vpn, pageLv * 9 + 8, pageLv * 9);
+    base += BITS(sv39va.vpn, pageLv * 9 + 8, pageLv * 9) * 8;
     Sv39Pte pte = {.val = paddr_read(base, 8)};
     MMU_ASSERT(pte.reserved == 0, "pte = %lx", pte.val);
 
@@ -106,8 +107,10 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
     MMU_ASSERT((!pte.v || (!pte.r && pte.w)) == false, "pte = %lx", pte.val);
 
     /* Step4: Check pte.r = 1 or pte.x = 1 for leaf or node */
-    if ((pte.r || pte.x) == false)
+    if ((pte.r || pte.x) == false) {
+      base = pte.ppn * PAGE_SIZE;
       continue;
+    }
 
     /* Step5: Check leaf PTE r, w, x, u bits */
     switch (type) {
