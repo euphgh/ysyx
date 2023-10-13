@@ -55,6 +55,7 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
                                   mtvec->base << 2));
   cpu.pc = mtvec->base << 2;
   isa_decode.isa.csrChange = true;
+  longjmp(isa_except_buf, 1);
 }
 
 word_t isa_query_intr() { return INTR_EMPTY; }
