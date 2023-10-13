@@ -121,7 +121,7 @@ void map(AddrSpace *as, void *va, void *pa, int prot) {
   };
   uintptr_t base = (uintptr_t)as->ptr;
   Sv39Pte tempePte = {
-      .v = prot != 0,
+      .v = true,
       .r = true,
       .w = true,
       .x = true,
