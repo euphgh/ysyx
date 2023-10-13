@@ -35,10 +35,11 @@ typedef union {
     word_t w : 1;
     word_t x : 1;
     word_t u : 1;
+    word_t g : 1;
     word_t a : 1;
     word_t d : 1;
     word_t rsw : 2;
-    word_t ppn : 27;
+    word_t ppn : 44;
     word_t reserved : 10;
   };
   word_t val;

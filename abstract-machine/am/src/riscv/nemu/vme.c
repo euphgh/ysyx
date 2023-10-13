@@ -95,10 +95,11 @@ typedef union {
     uintptr_t w : 1;
     uintptr_t x : 1;
     uintptr_t u : 1;
+    uintptr_t g : 1;
     uintptr_t a : 1;
     uintptr_t d : 1;
     uintptr_t rsw : 2;
-    uintptr_t ppn : 27;
+    uintptr_t ppn : 44;
     uintptr_t reserved : 10;
   };
   uintptr_t val;
