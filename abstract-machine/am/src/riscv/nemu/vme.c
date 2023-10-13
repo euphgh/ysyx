@@ -133,7 +133,8 @@ void map(AddrSpace *as, void *va, void *pa, int prot) {
     Sv39Pte *pte = (Sv39Pte *)(base + vpn(sv39va, lv) * 8);
     if (pte->val == 0) {
       PTE *nextLv = (PTE *)(pgalloc_usr(PGSIZE));
-      *pte = tempePte;
+      pte->val = 0;
+      pte->v = true;
       pte->ppn = ((uintptr_t)nextLv >> 12);
     }
     base = (uintptr_t)pte->ppn << 12;
