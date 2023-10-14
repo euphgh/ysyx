@@ -126,9 +126,10 @@ void map(AddrSpace *as, void *va, void *pa, int prot) {
       .r = true,
       .w = true,
       .x = true,
+      .g = true,
       .u = false,
-      .a = false,
-      .d = false,
+      .a = true,
+      .d = true,
   };
   for (int lv = 2; lv > 0; lv--) {
     Sv39Pte *pte = (Sv39Pte *)(base + vpn(sv39va, lv) * 8);

@@ -83,7 +83,7 @@ inline static word_t ppn(Sv39Pte pte, int lv) {
   return BITS(pte.val, msb[lv], 10 + lv * 9);
 }
 
-#define HARDWAVE_AD
+// #define HARDWAVE_AD
 
 paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
   errstr[0] = '\0';
