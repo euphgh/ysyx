@@ -1,6 +1,22 @@
 
 typedef union {
   struct {
+    word_t fiom : 1;
+    word_t z3to1 : 3;
+    word_t cbie : 2;
+    word_t cbcfe : 1;
+    word_t cbze : 1;
+    word_t z60to8 : 53;
+    word_t hade : 1;
+    word_t pbmte : 1;
+    word_t stce : 1;
+  };
+  word_t val;
+} menvcfg_t;
+extern menvcfg_t *menvcfg;
+
+typedef union {
+  struct {
     word_t mode : 2;
     word_t base : 62;
   };
@@ -135,6 +151,7 @@ typedef union {
   word_t val;
 } satp_t;
 extern satp_t *satp;
+word_t menvcfgRead();
 word_t mtvecRead();
 word_t stvecRead();
 word_t mepcRead();

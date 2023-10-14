@@ -1,4 +1,5 @@
 #define CSR_NUM_LIST(_)                                                        \
+  _(menvcfg, 0x30a, MENVCFG)                                                   \
   _(mtvec, 0x305, MTVEC)                                                       \
   _(stvec, 0x105, STVEC)                                                       \
   _(mepc, 0x341, MEPC)                                                         \

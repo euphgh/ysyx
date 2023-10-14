@@ -39,6 +39,15 @@ mcauseFields = [
 ]
 
 AllCRS: list[CtrlStatReg] = [
+    CSR("menvcfg", 0x30a, [
+        FLD("stce", 63, 63, "READ", 0x0),
+        FLD("pbmte", 62, 62, "READ", 0x0),
+        FLD("hade", 61, 61, "WARL", 0x0),
+        FLD("cbze", 7, 7, "READ", 0x0),
+        FLD("cbcfe", 6, 6, "READ", 0x0),
+        FLD("cbie", 5, 4, "READ", 0x0),
+        FLD("fiom", 0, 0, "READ", 0x0)
+    ],),
     CSR("mtvec", 0x305, mtvecFields),
     CSR("stvec", 0x105, mtvecFields),
     # xEPC: save trap pc

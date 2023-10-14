@@ -1,4 +1,7 @@
 
+static menvcfg_t menvcfgReg;
+menvcfg_t *menvcfg = &menvcfgReg;
+
 static mtvec_t mtvecReg;
 mtvec_t *mtvec = &mtvecReg;
 
@@ -39,6 +42,12 @@ sscratch_t *sscratch = &sscratchReg;
 
 static satp_t satpReg;
 satp_t *satp = &satpReg;
+
+inline static void menvcfgWrite(word_t val) {
+  menvcfg_t newVar = {.val = val};
+
+  menvcfg->hade = newVar.hade;
+}
 
 inline static void mtvecWrite(word_t val) {
   mtvec_t newVar = {.val = val};
@@ -138,6 +147,7 @@ inline static void satpWrite(word_t val) {
     satp->mode = newVar.mode;
   }
 }
+word_t menvcfgRead() { return (menvcfg->val); }
 word_t mtvecRead() { return (mtvec->val); }
 word_t stvecRead() { return (stvec->val); }
 word_t mepcRead() { return (mepc->val); }
@@ -154,6 +164,12 @@ word_t sscratchRead() { return (sscratch->val); }
 word_t satpRead() { return (satp->val); }
 void csrRW(int csrDst, word_t *rd, word_t *src1, csrOp op) {
   switch (csrDst) {
+  case 0x30a:
+    if (rd)
+      *rd = menvcfgRead();
+    if (src1)
+      menvcfgWrite(whichOp(menvcfg->val, *src1, op));
+    break;
   case 0x305:
     if (rd)
       *rd = mtvecRead();
@@ -241,6 +257,7 @@ void csrRW(int csrDst, word_t *rd, word_t *src1, csrOp op) {
   }
 }
 void csrInit() {
+  menvcfg->val = 0x0;
   mtvec->val = 0x0;
   stvec->val = 0x0;
   mepc->val = 0x0;
