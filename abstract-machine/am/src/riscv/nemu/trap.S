@@ -38,7 +38,7 @@ f(30) f(31)
 #define OFFSET_EPC    ((NR_REGS + 2) * XLEN)
 
 .align 3
-.globl __am_asm_trap
+.globl __am_asm_trap, __am_asm_strap
 __am_asm_trap:
   addi sp, sp, -CONTEXT_SIZE
 
@@ -70,3 +70,30 @@ __am_asm_trap:
 
   addi sp, sp, CONTEXT_SIZE
   mret
+
+__am_asm_strap:
+  addi sp, sp, -CONTEXT_SIZE
+
+  MAP(REGS, PUSH)
+
+  csrr t0, scause
+  csrr t1, sstatus
+  csrr t2, sepc
+
+  STORE t0, OFFSET_CAUSE(sp)
+  STORE t1, OFFSET_STATUS(sp)
+  STORE t2, OFFSET_EPC(sp)
+
+  mv a0, sp # set __am_irq_handle function parameter (Context* ctx)
+  jal __am_irq_handle
+  mv sp, a0 # set sp for new proc after proc schedual
+
+  LOAD t1, OFFSET_STATUS(sp)
+  LOAD t2, OFFSET_EPC(sp)
+  csrw sstatus, t1
+  csrw sepc, t2
+
+  MAP(REGS, POP)
+
+  addi sp, sp, CONTEXT_SIZE
+  sret

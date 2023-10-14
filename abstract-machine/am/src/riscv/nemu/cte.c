@@ -9,10 +9,11 @@ static Context* (*user_handler)(Event, Context*) = NULL;
 Context* __am_irq_handle(Context *c) {
   if (user_handler) {
     Event ev = {0};
-    switch (c->mcause) {
+    switch (c->cause) {
     case EC_EnvCallFromM:
+    case EC_EnvCallFromS:
       ev.event = EVENT_SYSCALL;
-      c->mepc = c->mepc + 4;
+      c->epc = c->epc + 4;
       if (c->gpr[17] == -1)
         ev.event = EVENT_YIELD;
       break;
@@ -45,20 +46,25 @@ c->x0  low addr
 }
 
 extern void __am_asm_trap(void);
+extern void __am_asm_strap(void);
 
 bool cte_init(Context*(*handler)(Event, Context*)) {
   // initialize exception entry
   asm volatile("csrw mtvec, %0;\
-                csrw stvec, %0;\
+                csrw stvec, %1;\
                 "
                :
-               : "r"(__am_asm_trap));
+               : "r"(__am_asm_trap), "r"(__am_asm_strap));
 
   // register event handler
   user_handler = handler;
 
+  /* set medeleg for ecall */
+  uintptr_t secall = 1 << 9;
+  asm volatile("csrrs zero, medeleg, %0" ::"r"(secall) :);
+
   /* use ret to S mode */
-  uintptr_t mpp = 1 << 11;
+  uintptr_t mpp = 1 << 11; // set ret to mode as S
   uintptr_t tmp;
   asm volatile("csrrs zero, mstatus, %1; \
                 auipc %0, 0x0;\
@@ -76,9 +82,9 @@ Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
   void *ctxStart = kstack.end - sizeof(Context);
   Context *ctx = (Context *)ctxStart;
   ctx->GPRx = (uintptr_t)arg;
-  ctx->mepc = (uintptr_t)entry;
-  ctx->mcause = (uintptr_t)0x0;
-  ctx->mstatus = (uintptr_t)0xa00001800;
+  ctx->epc = (uintptr_t)entry;
+  ctx->cause = (uintptr_t)0x0;
+  ctx->status = (uintptr_t)0x200000100; // init value as sstatus not mstatus
   return ctx;
 }
 

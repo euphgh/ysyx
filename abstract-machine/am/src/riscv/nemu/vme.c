@@ -148,8 +148,8 @@ void map(AddrSpace *as, void *va, void *pa, int prot) {
 Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
   void *ctxStart = kstack.end - sizeof(Context);
   Context *ctx = (Context *)ctxStart;
-  ctx->mepc = (uintptr_t)entry;
-  ctx->mcause = (uintptr_t)0x0;
-  ctx->mstatus = (uintptr_t)0xa00001800;
+  ctx->epc = (uintptr_t)entry;
+  ctx->cause = (uintptr_t)0x0;
+  ctx->status = (uintptr_t)0x200000100;
   return ctx;
 }
