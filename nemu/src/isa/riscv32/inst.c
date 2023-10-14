@@ -239,7 +239,12 @@ inline ExcCode ecallCode() {
          : machineMode == PRI_S ? EC_EnvCallFromS
                                 : EC_EnvCallFromU;
 }
-
+const char *PLvStr[] = {
+    [PRI_M] = "M",
+    [PRI_S] = "S",
+    [PRI_U] = "U",
+    [PRI_RSV] = "Reserve",
+};
 static void eretInstr(Plevel retPlv) {
   if (retPlv != machineMode)
     isa_raise_intr(EC_IllegalInstr, 0);
@@ -263,7 +268,8 @@ static void eretInstr(Plevel retPlv) {
     panic("xRet in mode %d", machineMode);
   }
 #undef xRet
-  IFDEF(CONFIG_ETRACE, traceWrite("[E] eret to " FMT_WORD, cpu.pc));
+  IFDEF(CONFIG_ETRACE, traceWrite("[E] eret to " FMT_WORD " with mode %s->%s",
+                                  cpu.pc, PLvStr[retPlv], PLvStr[machineMode]));
 }
 
 inline static void csrrxInstr(int num, int rd, word_t src1, csrOp op) {

@@ -33,6 +33,9 @@ static const char *IntStr[] = {InterruptList(StrArrDef)};
   ((isInter(num)) ? BITS(medeleg->val, num, num) : BITS(mideleg->val, num, num))
 
 void isa_raise_intr(word_t NO, vaddr_t tval) {
+#ifdef CONFIG_ETRACE
+  const char *lastModeStr = PLvStr[machineMode];
+#endif
   if (BITS(medeleg->val, NO, NO) == 0) {
     mepc->val = isa_decode.pc;
     mcause->val = NO;
@@ -40,7 +43,12 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
     mstatus->mpie = mstatus->mie;
     mstatus->mie = 0;
     // mtval->val = tval;
+    cpu.pc = mtvec->base << 2;
     machineMode = PRI_M;
+#ifdef CONFIG_ETRACE
+    traceWrite("[E] raise %s to " FMT_WORD " with mode %s->M", GetStr(NO),
+               mtvec->base << 2, lastModeStr);
+#endif
   } else {
     sepc->val = isa_decode.pc;
     scause->val = NO;
@@ -48,12 +56,13 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
     sstatus->spie = sstatus->sie;
     sstatus->sie = 0;
     // stval->val = tval;
+    cpu.pc = stvec->base << 2;
     machineMode = PRI_S;
+#ifdef CONFIG_ETRACE
+    traceWrite("[E] raise %s to " FMT_WORD " with mode %s->S", GetStr(NO),
+               stvec->base << 2, lastModeStr);
+#endif
   }
-
-  IFDEF(CONFIG_ETRACE, traceWrite("[E] trigger %s to " FMT_WORD, GetStr(NO),
-                                  mtvec->base << 2));
-  cpu.pc = mtvec->base << 2;
   isa_decode.isa.csrChange = true;
   longjmp(isa_except_buf, 1);
 }
