@@ -18,8 +18,6 @@
 #include <memory/vaddr.h>
 #include <memory/paddr.h>
 
-extern const char *mtraceVname;
-extern vaddr_t mtraceVaddr;
 bool vaddr_success() { return true; }
 
 #define PADDR_ALIGN_CHECK(len, addr)                                           \
@@ -38,13 +36,16 @@ bool vaddr_success() { return true; }
   Assert(pa == va, "vaddr(" FMT_WORD ") != paddr(" FMT_PADDR ")", va, pa);
 
 word_t vaddr_ifetch(vaddr_t addr, int len) {
+  int mmu_check_res = isa_mmu_check(addr, len, MEM_TYPE_IFETCH);
+  paddr_t paddr = addr;
+  const char *tranStr = "[M] Ifetch va " FMT_WORD "dir pa" FMT_PADDR;
+  if (mmu_check_res == MMU_TRANSLATE) {
+    paddr = isa_mmu_translate(addr, len, MEM_TYPE_IFETCH);
+    tranStr = "[M] Ifetch va " FMT_WORD "trl pa" FMT_PADDR;
+  }
 #ifdef CONFIG_MTRACE
-  mtraceVaddr = addr;
-  mtraceVname = "Ifetch";
+  traceWrite(tranStr, addr, paddr);
 #endif
-  paddr_t paddr = (isa_mmu_check(addr, len, MEM_TYPE_IFETCH) == MMU_TRANSLATE)
-                      ? isa_mmu_translate(addr, len, MEM_TYPE_IFETCH)
-                      : addr;
   ADDR_ASSER(addr, paddr);
   word_t ret = paddr_read(paddr, len);
   if (addr & 0b11)
@@ -56,13 +57,16 @@ exception:
 }
 
 word_t vaddr_read(vaddr_t addr, int len) {
+  int mmu_check_res = isa_mmu_check(addr, len, MEM_TYPE_IFETCH);
+  paddr_t paddr = addr;
+  const char *tranStr = "[M] Dread  va " FMT_WORD "dir pa" FMT_PADDR;
+  if (mmu_check_res == MMU_TRANSLATE) {
+    paddr = isa_mmu_translate(addr, len, MEM_TYPE_IFETCH);
+    tranStr = "[M] Dread  va " FMT_WORD "trl pa" FMT_PADDR;
+  }
 #ifdef CONFIG_MTRACE
-  mtraceVaddr = addr;
-  mtraceVname = "Dread ";
+  traceWrite(tranStr, addr, paddr);
 #endif
-  paddr_t paddr = (isa_mmu_check(addr, len, MEM_TYPE_READ) == MMU_TRANSLATE)
-                      ? isa_mmu_translate(addr, len, MEM_TYPE_READ)
-                      : addr;
   word_t ret = paddr_read(paddr, len);
   ADDR_ASSER(addr, paddr);
   PADDR_ALIGN_CHECK(len, paddr);
@@ -73,13 +77,16 @@ exception:
 }
 
 void vaddr_write(vaddr_t addr, int len, word_t data) {
+  int mmu_check_res = isa_mmu_check(addr, len, MEM_TYPE_IFETCH);
+  paddr_t paddr = addr;
+  const char *tranStr = "[M] Dwrite va " FMT_WORD "dir pa" FMT_PADDR;
+  if (mmu_check_res == MMU_TRANSLATE) {
+    paddr = isa_mmu_translate(addr, len, MEM_TYPE_IFETCH);
+    tranStr = "[M] Dwrite va " FMT_WORD "trl pa" FMT_PADDR;
+  }
 #ifdef CONFIG_MTRACE
-  mtraceVaddr = addr;
-  mtraceVname = "Dwrite";
+  traceWrite(tranStr, addr, paddr);
 #endif
-  paddr_t paddr = (isa_mmu_check(addr, len, MEM_TYPE_WRITE) == MMU_TRANSLATE)
-                      ? isa_mmu_translate(addr, len, MEM_TYPE_WRITE)
-                      : addr;
   ADDR_ASSER(addr, paddr);
   paddr_write(paddr, len, data);
   PADDR_ALIGN_CHECK(len, paddr);

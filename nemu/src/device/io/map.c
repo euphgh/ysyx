@@ -46,7 +46,8 @@ static void invoke_callback(io_callback_t c, paddr_t offset, int len, bool is_wr
   if (c != NULL) { c(offset, len, is_write); }
 }
 
-void mtrace(const char *pname, paddr_t paddr, word_t data, int len);
+void mtrace(const char *pname, const char *pverb, paddr_t paddr, word_t data,
+            int len);
 
 void init_map() {
   io_space = malloc(IO_SPACE_MAX);
@@ -60,7 +61,7 @@ word_t map_read(paddr_t addr, int len, IOMap *map) {
   paddr_t offset = addr - map->low;
   invoke_callback(map->callback, offset, len, false); // prepare data to read
   word_t ret = host_read(map->space + offset, len);
-  IFDEF(CONFIG_MTRACE, mtrace(map->name, addr, ret, len));
+  IFDEF(CONFIG_MTRACE, mtrace(map->name, "read", addr, ret, len));
   return ret;
 }
 
@@ -70,5 +71,5 @@ void map_write(paddr_t addr, int len, word_t data, IOMap *map) {
   paddr_t offset = addr - map->low;
   host_write(map->space + offset, len, data);
   invoke_callback(map->callback, offset, len, true);
-  IFDEF(CONFIG_MTRACE, mtrace(map->name, addr, data, len));
+  IFDEF(CONFIG_MTRACE, mtrace(map->name, "write", addr, data, len));
 }

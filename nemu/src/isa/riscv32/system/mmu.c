@@ -48,7 +48,6 @@ typedef union {
 static Plevel memPLv;
 extern bool mtraceTrans;
 int isa_mmu_check(vaddr_t foo, int len, int type) {
-  mtraceTrans = false;
   /* set privilege of mem access */
   memPLv = machineMode;
   if (type != MEM_TYPE_IFETCH && mstatus->mprv)
@@ -59,7 +58,6 @@ int isa_mmu_check(vaddr_t foo, int len, int type) {
     return MMU_DIRECT;
   Assert(satp->mode == SatpModeSv39, "memPLv = %d, satp->mode = %d", memPLv,
          satp->mode);
-  mtraceTrans = true;
   return MMU_TRANSLATE;
 }
 
@@ -154,6 +152,7 @@ mmuFail : {
   word_t num = type == MEM_TYPE_IFETCH ? EC_InstrPageFault
                : type == MEM_TYPE_READ ? EC_LoadPageFault
                                        : EC_StorePageFault;
+  warn("%s", errstr);
   isa_raise_intr(num, vaddr);
   return 0;
 }
