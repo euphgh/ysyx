@@ -114,7 +114,7 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
     /* Step5: Check leaf PTE r, w, x, u bits */
     switch (type) {
     case MEM_TYPE_IFETCH:
-      MMU_ASSERT(pte.x && pte.u ^ (memPLv != PRI_U), "pte = %lx", pte.val);
+      MMU_ASSERT(pte.x && (pte.u ^ (memPLv != PRI_U)), "pte = %lx", pte.val);
       break;
     case MEM_TYPE_READ:
       MMU_ASSERT(mxr(pte) && sum(pte), "pte = %lx", pte.val);
