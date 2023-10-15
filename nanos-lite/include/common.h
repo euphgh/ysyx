@@ -3,9 +3,9 @@
 
 /* Uncomment these macros to enable corresponding functionality. */
 #define HAS_CTE
-#define CONFIG_BATCH
+// #define CONFIG_BATCH
 // #define CONFIG_MENU
-// #define CONFIG_STRACE
+#define CONFIG_STRACE
 #define HAS_VME
 // #define MULTIPROGRAM
 // #define TIME_SHARING

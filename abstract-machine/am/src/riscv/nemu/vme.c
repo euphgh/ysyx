@@ -34,17 +34,43 @@ static inline uintptr_t get_satp() {
   return satp << 12;
 }
 
+typedef union {
+  struct {
+    uintptr_t v : 1;
+    uintptr_t r : 1;
+    uintptr_t w : 1;
+    uintptr_t x : 1;
+    uintptr_t u : 1;
+    uintptr_t g : 1;
+    uintptr_t a : 1;
+    uintptr_t d : 1;
+    uintptr_t rsw : 2;
+    uintptr_t ppn : 44;
+    uintptr_t reserved : 10;
+  };
+  uintptr_t val;
+} Sv39Pte;
+void writePTE(AddrSpace *as, void *va, void *pa, Sv39Pte tempePte);
 bool vme_init(void* (*pgalloc_f)(int), void (*pgfree_f)(void*)) {
   pgalloc_usr = pgalloc_f;
   pgfree_usr = pgfree_f;
 
   kas.ptr = pgalloc_f(PGSIZE);
-
+  Sv39Pte temp = {
+      .v = true,
+      .r = true,
+      .w = true,
+      .x = true,
+      .g = true,
+      .u = false,
+      .a = true,
+      .d = true,
+  };
   int i;
   for (i = 0; i < LENGTH(segments); i ++) {
     void *va = segments[i].start;
     for (; va < segments[i].end; va += PGSIZE) {
-      map(&kas, va, va, 0);
+      writePTE(&kas, va, va, temp);
     }
   }
 
@@ -76,6 +102,7 @@ void __am_get_cur_as(Context *c) {
 void __am_switch(Context *c) {
   if (vme_enable && c->pdir != NULL) {
     set_satp(c->pdir);
+    valid_satp();
   }
 }
 
@@ -88,23 +115,6 @@ typedef union {
   uintptr_t val;
 } Sv39Vaddr;
 
-typedef union {
-  struct {
-    uintptr_t v : 1;
-    uintptr_t r : 1;
-    uintptr_t w : 1;
-    uintptr_t x : 1;
-    uintptr_t u : 1;
-    uintptr_t g : 1;
-    uintptr_t a : 1;
-    uintptr_t d : 1;
-    uintptr_t rsw : 2;
-    uintptr_t ppn : 44;
-    uintptr_t reserved : 10;
-  };
-  uintptr_t val;
-} Sv39Pte;
-
 #define BITMASK(bits) ((1ull << (bits)) - 1)
 #define BITS(x, hi, lo)                                                        \
   (((x) >> (lo)) & BITMASK((hi) - (lo) + 1)) // similar to x[hi:lo] in verilog
@@ -116,21 +126,11 @@ inline static uintptr_t vpn(Sv39Vaddr va, int lv) {
   return BITS(va.vpn, lv * 9 + 8, lv * 9);
 }
 
-void map(AddrSpace *as, void *va, void *pa, int prot) {
+void writePTE(AddrSpace *as, void *va, void *pa, Sv39Pte template) {
   Sv39Vaddr sv39va = {
       .val = (uintptr_t)va,
   };
   uintptr_t base = (uintptr_t)as->ptr;
-  Sv39Pte tempePte = {
-      .v = true,
-      .r = true,
-      .w = true,
-      .x = true,
-      .g = true,
-      .u = false,
-      .a = true,
-      .d = true,
-  };
   for (int lv = 2; lv > 0; lv--) {
     Sv39Pte *pte = (Sv39Pte *)(base + vpn(sv39va, lv) * 8);
     if (pte->val == 0) {
@@ -142,8 +142,22 @@ void map(AddrSpace *as, void *va, void *pa, int prot) {
     base = (uintptr_t)pte->ppn << 12;
   }
   Sv39Pte *pteAddr = (Sv39Pte *)(base + vpn(sv39va, 0) * 8);
-  *pteAddr = tempePte;
+  *pteAddr = template;
   pteAddr->ppn = (uintptr_t)pa >> 12;
+}
+
+void map(AddrSpace *as, void *va, void *pa, int prot) {
+  Sv39Pte temp = {
+      .v = true,
+      .r = true,
+      .w = true,
+      .x = true,
+      .g = true,
+      .u = true,
+      .a = true,
+      .d = true,
+  };
+  writePTE(as, va, pa, temp);
 }
 
 Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
@@ -151,6 +165,7 @@ Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
   Context *ctx = (Context *)ctxStart;
   ctx->epc = (uintptr_t)entry;
   ctx->cause = (uintptr_t)0x0;
-  ctx->status = (uintptr_t)0x200000100;
+  ctx->status = (uintptr_t)0x200040000; // ret to u mode, with status.sum set
+  ctx->pdir = as->ptr;
   return ctx;
 }
