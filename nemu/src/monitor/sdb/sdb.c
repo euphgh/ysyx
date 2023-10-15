@@ -133,7 +133,7 @@ static int cmd_w(char *args) {
 };
 
 static int cmd_b(char *args) {
-#ifdef CONFIG_WATCHPOINT
+#ifdef CONFIG_BREAKPOINT
   if (insertBP(args))
     printf("successfully add breakpoint\n");
 #else
