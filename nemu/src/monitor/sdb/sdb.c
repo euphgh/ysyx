@@ -123,14 +123,22 @@ static int cmd_p(char *args) {
 };
 
 static int cmd_w(char *args) {
+#ifdef CONFIG_WATCHPOINT
   if (insertWP(args))
     printf("successfully add watchpoint\n");
+#else
+  printf("not enable watchpoint\n");
+#endif
   return 0;
 };
 
 static int cmd_b(char *args) {
+#ifdef CONFIG_WATCHPOINT
   if (insertBP(args))
     printf("successfully add breakpoint\n");
+#else
+  printf("not enable breakpoint\n");
+#endif
   return 0;
 }
 
@@ -213,7 +221,7 @@ void sdb_set_batch_mode() {
 void sdb_mainloop() {
   if (is_batch_mode) {
     cmd_c(NULL);
-    return;
+    // return;
   }
 
   for (char *str; (str = rl_gets()) != NULL; ) {

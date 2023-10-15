@@ -1,4 +1,5 @@
 #include "adt/ArrayLink.h"
+#include "cpu/decode.h"
 #include "isa.h"
 #include "sdb.h"
 
@@ -51,7 +52,7 @@ void showInfoBP() {
 bool checkBP() {
   bool success = true;
   AL_FOREACH(i, {
-    if (unlikely(cpu.pc == vaddrs[i])) {
+    if (unlikely(isa_decode.pc == vaddrs[i])) {
       success = false;
       int name = AL_POS2NUM(i);
       Assert(name >= 0, "Not find breakpoint %d name", i);
