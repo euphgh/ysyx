@@ -42,7 +42,7 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
     mstatus->mpp = machineMode;
     mstatus->mpie = mstatus->mie;
     mstatus->mie = 0;
-    // mtval->val = tval;
+    mtval->val = tval;
     cpu.pc = mtvec->base << 2;
     machineMode = PRI_M;
 #ifdef CONFIG_ETRACE
@@ -55,7 +55,7 @@ void isa_raise_intr(word_t NO, vaddr_t tval) {
     sstatus->spp = machineMode;
     sstatus->spie = sstatus->sie;
     sstatus->sie = 0;
-    // stval->val = tval;
+    stval->val = tval;
     cpu.pc = stvec->base << 2;
     machineMode = PRI_S;
 #ifdef CONFIG_ETRACE

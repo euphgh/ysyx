@@ -176,7 +176,7 @@ static int decode_exec() {
   INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = cpu.pc; cpu.pc = s->pc + imm; rasJal());
 
 
-  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, isa_raise_intr(ecallCode(), s->pc));
+  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, isa_raise_intr(ecallCode(), 0));
   INSTPAT("0001001 ????? ????? 000 00000 11100 11", sfence , N, );
   INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, eretInstr(PRI_M));
   INSTPAT("0001000 00010 00000 000 00000 11100 11", sret   , N, eretInstr(PRI_S));
