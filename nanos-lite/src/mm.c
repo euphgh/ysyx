@@ -5,12 +5,13 @@ static void *pf = NULL;
 
 void* new_page(size_t nr_page) {
   void *this = pf;
-  pf += nr_page * (1 << 12);
+  pf += nr_page * PGSIZE;
+  memset(this, 0, nr_page * PGSIZE);
   return this;
 }
 
 #ifdef HAS_VME
-static void *pg_alloc(int n) { return new_page(n >> 12); }
+static void *pg_alloc(int n) { return new_page(n / PGSIZE); }
 #endif
 
 void free_page(void *p) { Log("free page %p", p); }

@@ -5,6 +5,7 @@
 
 #ifndef PGSIZE
 #define PGSIZE 4096
+#define PG_OFFSET_MASK (PGSIZE - 1)
 #endif
 
 #define PG_ALIGN __attribute((aligned(PGSIZE)))
