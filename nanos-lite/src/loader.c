@@ -103,9 +103,7 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
     fs_read(fd, (void *)paddrOff, phdr.p_filesz);
     memset((void *)(paddrOff + phdr.p_filesz), 0, phdr.p_memsz - phdr.p_filesz);
   }
-  pcb->as.area.end = align_up((void *)findEnd(ehdr, fd), PGSIZE);
-  assert(pcb->as.area.end != 0);
-  assert((uintptr_t)(pcb->as.area.end) % PGSIZE == 0);
+  pcb->max_brk = (uintptr_t)align_up((void *)findEnd(ehdr, fd), PGSIZE);
   fs_close(fd);
   return ehdr.e_entry;
 }
@@ -177,12 +175,12 @@ void context_uload(PCB *pcb, const char *fileName, char *const argv[],
   Context *ctx = ucontext(&pcb->as, pcbStack, (void *)entry);
 
   /* alloc user stack address, va and pa is page align, put argv and envp */
-  void *uspVa = pcb->as.area.end;
+  Area vStack = RANGE(pcb->as.area.end - STACK_SIZE, pcb->as.area.end);
   size_t stackPageNum = STACK_SIZE / PGSIZE;
-  void *uspPa = new_page(stackPageNum);
-  for (size_t i = 0; i < stackPageNum; i++) {
-    map(&pcb->as, uspVa + i * PGSIZE, uspPa + i * PGSIZE,
-        MMAP_READ | MMAP_WRITE);
+  void *pStackBot = new_page(stackPageNum);
+  Area pStack = RANGE(pStackBot, pStackBot + STACK_SIZE);
+  mapPages(&pcb->as, vStack.start, pStack.start, stackPageNum,
+           MMAP_READ | MMAP_WRITE);
   }
   ctx->GPRx = (uintptr_t)uspVa |
               ((uintptr_t)putArgsEnvp(uspPa + STACK_SIZE, argv, envp) & 0xfff);
