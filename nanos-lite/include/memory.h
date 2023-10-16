@@ -11,5 +11,6 @@
 #define PG_ALIGN __attribute((aligned(PGSIZE)))
 
 void* new_page(size_t);
+void mapPages(AddrSpace *as, void *alignVa, void *alignPa, size_t nr, int prot);
 
 #endif

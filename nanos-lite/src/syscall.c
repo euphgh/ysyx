@@ -18,6 +18,7 @@ extern const char *fs_pathname(int fd);
 extern void uptimer_read(size_t *sec, size_t *us);
 extern void naive_uload(PCB *pcb, const char *filename);
 int execCall(const char *pathname, char *const argv[], char *const envp[]);
+int mm_brk(uintptr_t brk);
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
@@ -44,7 +45,7 @@ void do_syscall(Context *c) {
     c->GPRx = 0;
     break;
   case SYS_brk:
-    c->GPRx = 0;
+    c->GPRx = mm_brk(a[1]);
     break;
   case SYS_exit:
     c->GPRx = a[1];
