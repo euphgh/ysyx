@@ -141,7 +141,7 @@ static char *strcpyd(char *dst, const char *src) {
     arr##d[arr##c] = NULL;                                                     \
   } while (0)
 
-static void *putArgsEnvp(void *sp, char *const argv[], char *const envp[]) {
+static uintptr_t putArgsEnvp(void *sp, char *const argv[], char *const envp[]) {
   PushArr(sp, argv);
   PushArr(sp, envp);
   void *ptr = align_down(sp, 2 * _Alignof(void *));
@@ -151,7 +151,30 @@ static void *putArgsEnvp(void *sp, char *const argv[], char *const envp[]) {
   ptr = memcpy(ptr - sizeof(argvd), argvd, sizeof(argvd));
   uintptr_t *argcPtr = ptr - sizeof(uintptr_t);
   *argcPtr = argvc;
-  return argcPtr;
+  return (uintptr_t)argcPtr;
+}
+static uintptr_t putArgsEnvpVa(void *psp, void *vsp, char *const argv[],
+                               char *const envp[]) {
+  uintptr_t trans = vsp - psp;
+  PushArr(psp, argv);
+  PushArr(psp, envp);
+
+  void *ptr = align_down(psp, 2 * _Alignof(void *));
+  if ((sizeof(envpd) + sizeof(argvd) + sizeof(void *)) % 16)
+    ptr -= sizeof(void *);
+
+  ptr -= sizeof(envpd);
+  for (size_t i = 0; i < envpc; i++) {
+    ((char **)ptr)[i] = trans + envpd[i];
+  }
+  ptr -= sizeof(argvd);
+  for (size_t i = 0; i < argvc; i++) {
+    ((char **)ptr)[i] = trans + argvd[i];
+  }
+
+  uintptr_t *argcPtr = ptr - sizeof(uintptr_t);
+  *argcPtr = argvc;
+  return trans + (uintptr_t)argcPtr;
 }
 
 void context_uload_stack(Area stack, PCB *pcb, const char *fileName,
@@ -181,9 +204,7 @@ void context_uload(PCB *pcb, const char *fileName, char *const argv[],
   Area pStack = RANGE(pStackBot, pStackBot + STACK_SIZE);
   mapPages(&pcb->as, vStack.start, pStack.start, stackPageNum,
            MMAP_READ | MMAP_WRITE);
-  }
-  ctx->GPRx = (uintptr_t)uspVa |
-              ((uintptr_t)putArgsEnvp(uspPa + STACK_SIZE, argv, envp) & 0xfff);
+  ctx->GPRx = putArgsEnvpVa(pStack.end, vStack.end, argv, envp);
   pcb->cp = ctx;
 }
 
