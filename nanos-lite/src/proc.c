@@ -1,4 +1,5 @@
 #include "am.h"
+#include "debug.h"
 #include <proc.h>
 
 #define MAX_NR_PROC 4
@@ -26,10 +27,10 @@ void context_uload(PCB *pcb, const char *fileName, char *const argv[],
 void init_proc() {
   Log("Initializing processes...");
   void context_kload(PCB * pcb, void (*entry)(void *), void *arg);
-  // context_kload(&pcb[0], hello_fun, "foo");
+  context_kload(&pcb[0], hello_fun, "foo");
   char *argv[] = {"/bin/exec-test", "FOO", NULL};
   char *envp[] = {"HELLO=WORLD", "BAR=hello", NULL};
-  context_uload(&pcb[0], "/bin/args-test", argv, envp);
+  context_uload(&pcb[1], "/bin/args-test", argv, envp);
   // context_uload(&pcb[0], "/bin/dummy", NULL, NULL);
   switch_boot_pcb();
 }
@@ -45,10 +46,15 @@ Context *schedule(Context *prev) {
   current->cp = prev;
 
   // always select pcb[0] as the new process
-  // current = (current == &pcb[0] ? &pcb[1] : &pcb[0]);
-  current = &pcb[0];
+  if (current == &pcb[0]) {
+    current = &pcb[1];
+    Log("switch to usr prog, cp %lx", current->cp);
+  } else {
+    current = &pcb[0];
+    Log("switch to kernel prog, cp %lx", current->cp);
+  }
+  // current = &pcb[0];
 
-  // then return the new context
   return current->cp;
 }
 

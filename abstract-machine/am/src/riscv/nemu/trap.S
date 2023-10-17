@@ -36,6 +36,7 @@ f(30) f(31)
 #define OFFSET_CAUSE  ((NR_REGS + 0) * XLEN)
 #define OFFSET_STATUS ((NR_REGS + 1) * XLEN)
 #define OFFSET_EPC    ((NR_REGS + 2) * XLEN)
+#define OFFSET_SATP   ((NR_REGS + 3) * XLEN)
 
 .align 3
 .globl __am_asm_trap, __am_asm_strap
@@ -79,19 +80,31 @@ __am_asm_strap:
   csrr t0, scause
   csrr t1, sstatus
   csrr t2, sepc
+  csrr t3, satp
+  slli t3, t3, 12
 
   STORE t0, OFFSET_CAUSE(sp)
   STORE t1, OFFSET_STATUS(sp)
   STORE t2, OFFSET_EPC(sp)
+  STORE t3, OFFSET_SATP(sp)
 
   mv a0, sp # set __am_irq_handle function parameter (Context* ctx)
   jal __am_irq_handle
   mv sp, a0 # set sp for new proc after proc schedual
 
   LOAD t1, OFFSET_STATUS(sp)
-  LOAD t2, OFFSET_EPC(sp)
   csrw sstatus, t1
+
+  LOAD t2, OFFSET_EPC(sp)
   csrw sepc, t2
+
+  li   t4, 8
+  slli t4, t4, 60
+  LOAD t3, OFFSET_SATP(sp)
+  srli t3, t3, 12
+  or   t3, t4, t3
+  csrw satp, t3
+  sfence.vma
 
   MAP(REGS, POP)
 

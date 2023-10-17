@@ -8,10 +8,7 @@ extern void __am_get_cur_as(Context *c);
 extern void __am_switch(Context *c);
 static Context* (*user_handler)(Event, Context*) = NULL;
 
-Context* __am_irq_handle(Context *c) {
-  /* save address space */
-  __am_get_cur_as(c);
-
+Context *__am_irq_handle(Context *c) {
   if (user_handler) {
     Event ev = {0};
     switch (c->cause) {
@@ -40,8 +37,6 @@ Context* __am_irq_handle(Context *c) {
     c = user_handler(ev, c);
     assert(c != NULL);
   }
-  /* switch address space */
-  __am_switch(c);
   return c; // must is a stack point, pointing a Context
   /*
    x31 high addr
@@ -97,7 +92,7 @@ Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
   ctx->GPRx = (uintptr_t)arg;
   ctx->epc = (uintptr_t)entry;
   ctx->cause = (uintptr_t)0x0;
-  ctx->status = (uintptr_t)0x200000100; // init value as sstatus not mstatus
+  ctx->status = (uintptr_t)0x200040100; // init value as sstatus not mstatus
   __am_get_cur_as(ctx);
   return ctx;
 }
