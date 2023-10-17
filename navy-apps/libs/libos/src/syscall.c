@@ -70,14 +70,8 @@ int _write(int fd, void *buf, size_t count) {
 }
 
 extern char _end;
-static uintptr_t pbrk = 0;
-static int pbrkNotInit = 1;
-static char temp[32];
+static uintptr_t pbrk = (uintptr_t)&_end;
 void *_sbrk(intptr_t increment) {
-  if (pbrkNotInit) {
-    pbrkNotInit = 0;
-    pbrk = (unsigned long)&_end;
-  }
   if (_syscall_(SYS_brk, pbrk + increment, 0, 0) == 0) {
     unsigned long lastpbrk = pbrk;
     pbrk += increment;
