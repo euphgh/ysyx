@@ -15,6 +15,7 @@
 
 #include "isa.h"
 #include <common.h>
+#include <cpu/decode.h>
 #include <time.h>
 
 extern uint64_t g_nr_guest_inst;
@@ -45,7 +46,7 @@ bool log_enable() {
 #define logPC()                                                                \
   ({                                                                           \
     extern CPU_state cpu;                                                      \
-    cpu.pc;                                                                    \
+    isa_decode.pc;                                                             \
   })
 
 #define logTick()                                                              \
