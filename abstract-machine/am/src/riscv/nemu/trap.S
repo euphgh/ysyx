@@ -39,7 +39,68 @@ f(30) f(31)
 #define OFFSET_SATP   ((NR_REGS + 3) * XLEN)
 
 .align 3
-.globl __am_asm_trap, __am_asm_strap
+.globl __am_asm_trap, __am_asm_strap, __am_riscv_stacktrap
+
+__am_riscv_stacktrap:
+
+# ================= exchaneg sp =================
+  csrrw sp, sscratch, sp    // (1) atomically exchange sp and mscratch
+  bnez sp,  save_context    // (2) take the branch if we trapped from user
+  csrr sp,  sscratch        // (3) if we trapped from kernel, restore the original sp
+
+# ================= save context =================
+save_context: 
+  // save gpr, not include trap sp
+  MAP(REGS, PUSH)          
+
+  // save scause
+  csrr  t0, scause
+  STORE t0, OFFSET_CAUSE(sp)
+
+  // save sepc
+  csrr  t1, sepc
+  STORE t1, OFFSET_EPC(sp)
+
+  // save satp
+  csrr  t2, satp
+  STORE t2, OFFSET_SATP(sp)
+
+  // save trap sp
+  csrr  t3, sscratch
+  STORE t3, OFFSET_SP(sp)
+
+  mv a0, sp # set __am_irq_handle function parameter (Context* ctx)
+
+# ================= enable interrupt =================
+  jal __am_irq_handle
+# ================= disable interrupt =================
+
+  # set sp for new proc after proc schedual
+  mv sp, a0 
+
+  LOAD t0, OFFSET_STATUS(sp)
+  csrw sstatus, t0
+
+  LOAD t1, OFFSET_EPC(sp)
+  csrw sepc, t1
+
+  LOAD t2, OFFSET_SATP(sp)
+  csrw satp, t2
+
+  li   t4, 8
+  slli t4, t4, 60
+  LOAD t3, OFFSET_SATP(sp)
+  srli t3, t3, 12
+  or   t3, t4, t3
+  csrw satp, t3
+
+  MAP(REGS, POP)
+
+  addi sp, sp, CONTEXT_SIZE
+  sfence.vma
+  sret
+
+
 __am_asm_trap:
   addi sp, sp, -CONTEXT_SIZE
 
