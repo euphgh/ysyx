@@ -9,6 +9,7 @@
 !*.cpp
 !*.cc
 !.gitignore
+!.gitmodules
 !.scalafmt.conf
 !build.sc
 !README.md

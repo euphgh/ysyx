@@ -1,0 +1,3 @@
+[submodule "npc/difftest"]
+	path = npc/difftest
+	url = git@github.com:euphgh/difftest.git
