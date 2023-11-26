@@ -1,42 +1,42 @@
-// import Mill dependency
 import mill._
 import mill.scalalib._
 import mill.scalalib.scalafmt.ScalafmtModule
-import mill.scalalib.TestModule.Utest
-// support BSP
-import mill.bsp._
+import $file.difftest.build
 
-object playground extends ScalaModule with ScalafmtModule { m =>
-  val useChisel5            = false
+trait ChiselModule extends ScalaModule with ScalafmtModule {
   override def scalaVersion = "2.13.10"
+
+  override def ivyDeps = Agg(
+    ivy"org.chipsalliance::chisel:6.0.0-M3"
+  )
+
+  override def scalacPluginIvyDeps = Agg(
+    ivy"org.chipsalliance:::chisel-plugin:6.0.0-M3"
+  )
+
   override def scalacOptions = Seq(
-    "-language:reflectiveCalls",
-    "-deprecation",
+    "-Ymacro-annotations",
+    "-Xfatal-warnings",
     "-feature",
+    "-deprecation",
+    "-language:reflectiveCalls",
     "-Xcheckinit"
   )
-  override def ivyDeps = Agg(
-    if (useChisel5) ivy"org.chipsalliance::chisel:5.0.0"
-    else
-      ivy"edu.berkeley.cs::chisel3:3.6.0"
-  )
-  override def scalacPluginIvyDeps = Agg(
-    if (useChisel5) ivy"org.chipsalliance:::chisel-plugin:5.0.0"
-    else
-      ivy"edu.berkeley.cs:::chisel3-plugin:3.6.0"
-  )
-  object test extends ScalaTests with Utest {
-    override def ivyDeps = m.ivyDeps() ++ Agg(
-      ivy"com.lihaoyi::utest:0.8.1",
-      if (useChisel5) ivy"edu.berkeley.cs::chiseltest:5.0.0"
-      else
-        ivy"edu.berkeley.cs::chiseltest:0.6.0"
+}
+
+object playground extends ChiselModule {
+  override def millSourcePath = os.pwd
+  object test extends ScalaTests with TestModule.ScalaTest {
+    override def ivyDeps = super.ivyDeps() ++ Agg(
+      ivy"edu.berkeley.cs::chiseltest:5.0.2"
     )
   }
-  def repositoriesTask = T.task {
-    Seq(
-      coursier.MavenRepository("https://maven.aliyun.com/repository/central"),
-      coursier.MavenRepository("https://repo.scala-sbt.org/scalasbt/maven-releases")
-    ) ++ super.repositoriesTask()
+}
+
+object difftest extends millbuild.difftest.build.DifftestTrait with ChiselModule {
+  object test extends ScalaTests with TestModule.ScalaTest {
+    override def ivyDeps = super.ivyDeps() ++ Agg(
+      ivy"edu.berkeley.cs::chiseltest:5.0.2"
+    )
   }
 }
