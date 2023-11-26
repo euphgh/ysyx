@@ -46,14 +46,14 @@ Context *schedule(Context *prev) {
   current->cp = prev;
 
   // always select pcb[0] as the new process
-  if (current == &pcb[0]) {
-    current = &pcb[1];
-    Log("switch to usr prog, cp %lx", current->cp);
-  } else {
-    current = &pcb[0];
-    Log("switch to kernel prog, cp %lx", current->cp);
-  }
-  // current = &pcb[0];
+  // if (current == &pcb[0]) {
+  //   current = &pcb[1];
+  //   Log("switch to usr prog, cp %lx", current->cp);
+  // } else {
+  //   current = &pcb[0];
+  //   Log("switch to kernel prog, cp %lx", current->cp);
+  // }
+  current = &pcb[0];
 
   return current->cp;
 }
