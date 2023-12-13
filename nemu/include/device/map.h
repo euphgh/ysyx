@@ -28,6 +28,7 @@ typedef struct {
   paddr_t high;
   void *space;
   io_callback_t callback;
+  void *instance;
 } IOMap;
 
 static inline bool map_inside(IOMap *map, paddr_t addr) {
