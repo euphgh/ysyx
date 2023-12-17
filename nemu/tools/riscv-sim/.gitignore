@@ -1,2 +1,3 @@
-repo/
+riscv-isa-sim/
+riscv-opcodes/
 !difftest.cc
