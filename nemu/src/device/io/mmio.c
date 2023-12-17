@@ -32,10 +32,11 @@ static void report_mmio_overlap(const char *name1, paddr_t l1, paddr_t r1,
                "with %s@[" FMT_PADDR ", " FMT_PADDR "]", name1, l1, r1, name2, l2, r2);
 }
 
-/* device interface */
-void add_mmio_map(const char *name, paddr_t addr, void *space, uint32_t len, io_callback_t callback) {
+void add_mmio_map(const char *name, paddr_t addr, void *space, uint32_t len,
+                  void *instance) {
   assert(nr_map < NR_MAP);
-  paddr_t left = addr, right = addr + len - 1;
+  paddr_t left = addr;
+  paddr_t right = addr + len - 1;
   if (in_pmem(left) || in_pmem(right)) {
     report_mmio_overlap(name, left, right, "pmem", PMEM_LEFT, PMEM_RIGHT);
   }
@@ -45,10 +46,13 @@ void add_mmio_map(const char *name, paddr_t addr, void *space, uint32_t len, io_
     }
   }
 
-  maps[nr_map] = (IOMap){ .name = name, .low = addr, .high = addr + len - 1,
-    .space = space, .callback = callback };
-  Log("Add mmio map '%s' at [" FMT_PADDR ", " FMT_PADDR "]",
-      maps[nr_map].name, maps[nr_map].low, maps[nr_map].high);
+  maps[nr_map] = (IOMap){.name = name,
+                         .low = addr,
+                         .high = addr + len - 1,
+                         .space = space,
+                         .instance = instance};
+  Log("Add mmio map '%s' at [" FMT_PADDR ", " FMT_PADDR "]", maps[nr_map].name,
+      maps[nr_map].low, maps[nr_map].high);
 
   nr_map ++;
 }
