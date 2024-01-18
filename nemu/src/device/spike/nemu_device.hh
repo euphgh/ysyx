@@ -1,18 +1,20 @@
 #ifndef __NEMU_DEVICE_INCLUDE_NEMU_DEVICE_H__
 #define __NEMU_DEVICE_INCLUDE_NEMU_DEVICE_H__
 
-#include "abstract_device.h"
-#include <memory>
-#include <stdexcept>
-#include <string>
-
+#include <cstddef>
 extern "C" {
 #include "device/alarm.h"
 #include "device/map.h"
 #include "utils.h"
 #undef str
 #undef log_write
+#undef likely
+#undef unlikely
 }
+
+#include "abstract_device.h"
+#include <memory>
+#include <stdexcept>
 
 class nemu_device_t : public abstract_device_t {
 public:
@@ -24,6 +26,7 @@ public:
   }
   std::string name;
   uintptr_t paddr_start;
+  int len;
 
 protected:
   nemu_device_t(const char *_name, uintptr_t _paddr_start)
@@ -46,35 +49,30 @@ protected:
   }
 };
 
-extern device_factory_t *ntimer_factory;
 class ntimer_t : public nemu_device_t {
 public:
   ntimer_t(bool is_nemu = false, const char *_name = "rtc",
-           paddr_t _paddr_start = CONFIG_RTC_MMIO);
+           paddr_t _paddr_start = MUXDEF(CONFIG_HAS_TIMER, CONFIG_RTC_MMIO, 0));
 
-  static ntimer_t nemu_instance();
+  void init_timer();
 
 private:
   uint32_t *rtc_port_base = nullptr;
 
   void callback(uint32_t offset, int len, bool is_write) override;
-
-  void init_timer();
 };
 
 class nserial_t : public nemu_device_t {
 public:
-  nserial_t(bool is_nemu = false, const char *_name = "rtc",
-            paddr_t _paddr_start = CONFIG_RTC_MMIO);
-
-  static nserial_t nemu_instance();
+  nserial_t(bool is_nemu = false, const char *_name = "serial",
+            paddr_t _paddr_start = MUXDEF(CONFIG_HAS_SERIAL, CONFIG_SERIAL_MMIO,
+                                          0));
+  void init_serial();
 
 private:
   uint32_t *serial_base = nullptr;
 
   void callback(uint32_t offset, int len, bool is_write) override;
-
-  void init_serial();
 };
 
 extern device_factory_t *nserial_factory;
@@ -98,5 +96,32 @@ private:
 };
 
 #define NDEVICE_PANIC(fmt, ...) throw nemu_device_exception(fmt, ##__VA_ARGS__)
+
+#define NEMU_REGISTER_DEVICE(name, nemu_name, parse, generate)                 \
+  class name##_factory_t : public device_factory_t {                           \
+  public:                                                                      \
+    name##_factory_t() {                                                       \
+      std::string str(#name);                                                  \
+      IFDEF(CONFIG_TARGET_SPIKE_DEVICES,                                       \
+            if (!mmio_device_map().emplace(str, this).second) throw std::      \
+                runtime_error("Plugin \"" + str + "\" already registered"));   \
+    };                                                                         \
+    name##_t *parse_from_fdt(const void *fdt, const sim_t *sim,                \
+                             reg_t *base) const override {                     \
+      return parse(fdt, sim, base, sargs);                                     \
+    }                                                                          \
+    std::string generate_dts(const sim_t *sim) const override {                \
+      return generate(sim);                                                    \
+    }                                                                          \
+  };                                                                           \
+  device_factory_t *name##_factory = new name##_factory_t();                   \
+  extern "C" void init_##nemu_name() {                                         \
+    name##_t *instance = new name##_t{true};                                   \
+    instance->init_##nemu_name();                                              \
+    IFNDEF(CONFIG_TARGET_SPIKE_DEVICES,                                        \
+           MUXDEF(CONFIG_HAS_PORT_IO, add_pio_map, add_mmio_map))              \
+    IFNDEF(CONFIG_TARGET_SPIKE_DEVICES,                                        \
+           (#nemu_name, instance->paddr_start, instance->len, instace));       \
+  }
 
 #endif

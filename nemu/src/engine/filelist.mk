@@ -13,5 +13,7 @@
 # See the Mulan PSL v2 for more details.
 #**************************************************************************************/
 
+ifndef CONFIG_TARGET_SPIKE_DEVICES
 INC_PATH += $(NEMU_HOME)/src/engine/$(ENGINE)
 DIRS-y += src/engine/$(ENGINE)
+endif

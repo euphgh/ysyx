@@ -13,6 +13,7 @@ BUILD_DIR = $(WORK_DIR)/build
 INC_PATH := $(WORK_DIR)/include $(INC_PATH)
 OBJ_DIR  = $(BUILD_DIR)/obj-$(NAME)$(SO)
 BINARY   = $(BUILD_DIR)/$(NAME)$(SO)
+STATIC_LIB = $(BUILD_DIR)/lib$(NAME).a
 
 # Compilation flags
 ifeq ($(CC),clang)
@@ -52,6 +53,12 @@ app: $(BINARY)
 $(BINARY): $(OBJS) $(ARCHIVES)
 	@echo + LD $@
 	@$(LD) -o $@ $(OBJS) $(LDFLAGS) $(ARCHIVES) $(LIBS)
+
+staticlib: (STATIC_LIB)
+
+$(STATIC_LIB): $(OBJS) $(ARCHIVES) 
+	@echo + AR $@
+	@ar rcs $@ $^
 
 clean:
 	-rm -rf $(BUILD_DIR)

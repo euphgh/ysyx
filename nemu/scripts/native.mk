@@ -49,4 +49,20 @@ $(clean-tools):
 clean-tools: $(clean-tools)
 clean-all: clean distclean clean-tools
 
+ifndef SPIKE_HOME
+  SPIKE_HOME := $(or $(call remove_quote $(CONFIG_SPIKE_HOME)))
+endif
+ifeq ($(MAKECMDGOALS), staticlib)
+$(info debug SPIKE_HOME = $(SPIKE_HOME))
+$(info CONFIG_TARGET_SPIKE_DEVICES = $(CONFIG_TARGET_SPIKE_DEVICES))
+ifeq ($(strip $(SPIKE_HOME)), )
+    $(if $(CONFIG_TARGET_SPIKE_DEVICES),$(error CONFIG_TARGET_SPIKE_DEVICES is defined, but SPIKE_HOME is empty))
+endif
+endif
+
+RCLIOPT_FILE ?= $(BUILD_DIR)/nemu_devices.options
+
+rcli: $(STATIC_LIB)
+	echo "$(OBJS) $(LIBS)" > $(RCLIOPT_FILE)
+
 .PHONY: run gdb run-env clean-tools clean-all $(clean-tools)

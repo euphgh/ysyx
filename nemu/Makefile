@@ -47,6 +47,9 @@ CFLAGS_BUILD += $(if $(CONFIG_CC_DEBUG),-Og -ggdb3,)
 CFLAGS_BUILD += $(if $(CONFIG_CC_ASAN),-fsanitize=address,)
 CFLAGS_TRACE += -DITRACE_COND=$(if $(CONFIG_ITRACE_COND),$(call remove_quote,$(CONFIG_ITRACE_COND)),true)
 CFLAGS  += $(CFLAGS_BUILD) $(CFLAGS_TRACE) -D__GUEST_ISA__=$(GUEST_ISA)
+CXXFLAGS := $(filter-out -fno-exceptions, $(CXXFLAGS))
+CXXFLAGS := $(filter-out -std=c++14, $(CXXFLAGS))
+CXXFLAGS += -std=c++17
 LDFLAGS += $(CFLAGS_BUILD)
 
 # Include rules for menuconfig

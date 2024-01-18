@@ -66,7 +66,14 @@ config TARGET_SHARE
   bool "Shared object (used as REF for differential testing)"
 config TARGET_AM
   bool "Application on Abstract-Machine (DON'T CHOOSE)"
+config TARGET_SPIKE_DEVICES
+  bool "static libaray with devices used by spike"
 endchoice
+
+config SPIKE_HOME
+  string "define you spike repo path here or define enviroment variable \"SPIKE_HOME\""
+  default ""
+  depends on TARGET_SPIKE_DEVICES
 
 menu "Build Options"
 choice

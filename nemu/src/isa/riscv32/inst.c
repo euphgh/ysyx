@@ -191,7 +191,7 @@ static int decode_exec() {
   INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci , I, csrrxiInstr(imm, rd, csrCLR));
 
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, error("False Quit");NEMUTRAP(s->pc, R(10))); // R(10) is $a0
-  INSTPAT("0000000 00001 00000 000 00000 00010 11", custom , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
+  INSTPAT("0000000 00000 00000 000 00000 00010 11", custom , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
   INSTPAT_END();
 

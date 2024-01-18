@@ -6,6 +6,9 @@ extern "C" {
 #endif
 
 #include "common.h"
+#undef likely
+#undef unlikely
+#undef str
 
 bool invoke_load(void *instance, word_t addr, size_t len, uint8_t *bytes);
 bool invoke_store(void *instance, word_t addr, size_t len,

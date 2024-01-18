@@ -13,6 +13,7 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 #include "../local-include/csr.h"
+#include "common.h"
 #include "debug.h"
 #include "memory/paddr.h"
 
@@ -62,9 +63,11 @@ int isa_mmu_check(vaddr_t foo, int len, int type) {
 }
 
 static char errstr[128];
+static vaddr_t errVaddr;
 #define MMU_ASSERT(cond, fmt, ...)                                             \
   if (unlikely(!(cond)))                                                       \
     do {                                                                       \
+      errVaddr = vaddr;                                                        \
       snprintf(errstr, 128, #cond ":" fmt, ##__VA_ARGS__);                     \
       goto mmuFail;                                                            \
   } while (0)
@@ -160,4 +163,5 @@ mmuFail : {
 #undef MMU_ASSERT
 
 bool isa_mmu_success() { return errstr[0] == '\0'; }
+vaddr_t isa_mmu_fail_vaddr() { return errVaddr; }
 const char *isa_mmu_errorInfo() { return errstr; }

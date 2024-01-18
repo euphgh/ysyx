@@ -3,6 +3,7 @@
 #include "nemu_dts.hh"
 
 int fdt_parse_ntimer(const void *fdt, reg_t *rtc_addr, const char *compatible) {
+#ifdef CONFIG_TARGET_SPIKE_DEVICES
   int nodeoffset;
   int rc;
 
@@ -14,11 +15,13 @@ int fdt_parse_ntimer(const void *fdt, reg_t *rtc_addr, const char *compatible) {
   if (rc < 0 || !rtc_addr)
     return -ENODEV;
 
+#endif
   return 0;
 }
 
 int fdt_parse_nserial(const void *fdt, reg_t *rtc_addr,
                       const char *compatible) {
+#ifdef CONFIG_TARGET_SPIKE_DEVICES
   int nodeoffset;
   int rc;
 
@@ -30,5 +33,6 @@ int fdt_parse_nserial(const void *fdt, reg_t *rtc_addr,
   if (rc < 0 || !rtc_addr)
     return -ENODEV;
 
+#endif
   return 0;
 }

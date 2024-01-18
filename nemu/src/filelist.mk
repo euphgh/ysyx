@@ -13,6 +13,7 @@
 # See the Mulan PSL v2 for more details.
 #**************************************************************************************/
 
+ifndef CONFIG_TARGET_SPIKE_DEVICES
 SRCS-y += src/nemu-main.c
 DIRS-y += src/cpu src/monitor src/utils
 DIRS-$(CONFIG_MODE_SYSTEM) += src/memory
@@ -26,3 +27,5 @@ ASFLAGS += -DBIN_PATH=\"$(mainargs)\"
 endif
 SRCS-$(CONFIG_TARGET_AM) += src/am-bin.S
 .PHONY: src/am-bin.S
+
+endif

@@ -12,7 +12,8 @@
 #
 # See the Mulan PSL v2 for more details.
 #**************************************************************************************/
-
 INC_PATH += $(NEMU_HOME)/src/isa/$(GUEST_ISA)/include
+ifndef CONFIG_TARGET_SPIKE_DEVICES
 DIRS-y += src/isa/$(GUEST_ISA)
 DIRS-BLACKLIST-y = $(NEMU_HOME)/src/isa/$(GUEST_ISA)/local-include/csrgen
+endif
