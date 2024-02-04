@@ -22,16 +22,43 @@ VXX_FLAGS = --trace-fst -CFLAGS "-g $(CXX_INC) -D__$(MAIN_NAME)_MAIN__" -LDFLAGS
 SIM_ELF = $(BUILD_DIR)/Vtop
 NVBOARD_BIND = $(BUILD_DIR)/auto_bind.cpp
 NVBOARD_DEP = $(if $(CONFIG_NVBOARD_ENABLE), $(NVBOARD_ARCHIVE) $(NVBOARD_BIND),)
+CHISEL_VERSION ?= chisel3
 
-export PATH := $(PATH):$(abspath ./utils)
+ifeq ($(CHISEL_VERSION), chisel3)
+FIRTOOL_VERSION := 1.37.2
+else
+FIRTOOL_VERSION := 1.62.0
+endif
+FIRTOOL_URL = https://github.com/llvm/circt/releases/download/firtool-$(FIRTOOL_VERSION)/firrtl-bin-linux-x64.tar.gz
+FIRTOOL_PATH = $(shell which firtool 2>/dev/null)
+CACHE_FIRTOOL_PATH = $(HOME)/.cache/xiangshan/firtool-$(FIRTOOL_VERSION)/bin/firtool
+ifeq ($(MFC),1)
+ifeq ($(FIRTOOL_PATH),)
+ifeq ($(wildcard $(CACHE_FIRTOOL_PATH)),)
+$(info [INFO] Firtool not found in your PATH.)
+$(info [INFO] Downloading from $(FIRTOOL_URL))
+$(shell mkdir -p $(HOME)/.cache/xiangshan && curl -L $(FIRTOOL_URL) | tar -xzC $(HOME)/.cache/xiangshan)
+endif
+FIRTOOL_ARGS = --firtool-binary-path $(CACHE_FIRTOOL_PATH)
+endif
+endif
+export PATH := $(abspath .cache/firtool-$(FIRTOOL_VERSION)/bin):$(PATH)
+
+init:
+	git clone https://github.com/OpenXiangShan/rocket-chip.git
+	git clone https://github.com/OpenXiangShan/Utility utility
+	cd rocket-chip && git submodule update --init cde hardfloat
 
 test:
-	mill -i __.test
+	mill -i playground[chisel3].test
 
 verilog:
 	$(call git_commit, "generate verilog")
 	mkdir -p $(BUILD_DIR)
 	mill -i playground.runMain Elaborate -td $(BUILD_DIR)
+
+sim-verilog:
+	mill -i playground[$(CHISEL_VERSION)].runMain Elaborate -td $(BUILD_DIR)
 
 npcHelp:
 	mill -i __.test.runMain Elaborate --help
@@ -57,7 +84,7 @@ onOff:
 	mkdir -p $(BUILD_DIR)
 	cp $(VSRC_DIR)/OnOffSwitch/top.sv $(BUILD_DIR)/top.sv
 
-vhead:
+vheadc:
 	verilator $(VXX_FLAGS) --cc $(BUILD_DIR)/top.sv
 
 $(SIM_ELF): $(CSRC) $(NVBOARD_DEP) $(BUILD_DIR)/top.sv
