@@ -16,6 +16,8 @@
 build/
 include/npc/generated/
 include/config/
+rocket-chip/
+utility/
 
 # mill
 out/

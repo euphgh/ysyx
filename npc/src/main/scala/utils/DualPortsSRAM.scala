@@ -2,6 +2,7 @@ package utils
 
 import chisel3._
 import chisel3.util._
+import utility._
 
 class DPBundleA(val set: Int) extends Bundle {
   val setIdx = Output(UInt(log2Ceil(set).W))

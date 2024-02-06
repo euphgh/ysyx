@@ -39,7 +39,7 @@ case class DebugOptions(
 trait HasMyParams {
   implicit val p: Parameters
   val cores = p(CoreParamsKey)
-  val debug = p(DebugOptionsKey)
+  val debug = p(DebugOptionsKey).EnableDebug
   val XLEN  = cores.XLEN
   def xLen  = XLEN
 
@@ -56,7 +56,8 @@ trait HasMyParams {
   val enableBCache     = true
   // General Parameter for mycpu
   val excCodeWidth = 5
-  val PaddrWidth   = 32
+  val PAddrBits    = 39
+  val VAddrBits    = 64
   val tagWidth     = 20
   require(IcachLineBytes == 64 || IcachLineBytes == 32)
   require(DcachLineBytes == 64 || DcachLineBytes == 32)
@@ -64,7 +65,6 @@ trait HasMyParams {
   val DcacheOffsetWidth = log2Ceil(DcachLineBytes)
   val IcacheIndexWidth  = 12 - IcacheOffsetWidth
   val DcacheIndexWidth  = 12 - DcacheOffsetWidth
-  val vaddrWidth        = 32
   val instrWidth        = 32
   val dataWidth         = 32
   val enableCacheInst   = true
@@ -81,8 +81,8 @@ trait HasMyParams {
   val instrOffMsb   = log2Ceil(IcachLineBytes) - 1
   val instrOffWidth = instrOffMsb - instrOffLsb + 1
   def getAlignPC(pc: UInt) = {
-    require(pc.getWidth == 32)
-    val ifTag = pc(31, 4)
+    require(pc.getWidth == VAddrBits)
+    val ifTag = pc(XLEN - 1, 4)
     val alignPC =
       Mux(
         pc(instrOffMsb, instrOffLsb) > ((IcachLineBytes / 4) - 4).U(instrOffWidth.W),
