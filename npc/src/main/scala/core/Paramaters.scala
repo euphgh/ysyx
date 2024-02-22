@@ -4,6 +4,24 @@ import org.chipsalliance.cde.config.{Field, Parameters}
 import chisel3._
 import chisel3.util._
 
+case object SoCParamsKey extends Field[SoCParameters]
+
+case class SoCParameters(
+  EnableILA: Boolean = false,
+  PAddrBits: Int     = 36,
+  extIntrs:  Int     = 64)
+
+trait HasSoCParameter {
+  implicit val p: Parameters
+
+  val soc       = p(SoCParamsKey)
+  val debugOpts = p(DebugOptionsKey)
+
+  val EnableILA = soc.EnableILA
+
+  val NrExtIntr = soc.extIntrs
+}
+
 case object CoreParamsKey extends Field[CoreParams]
 
 case class CoreParams(
@@ -39,14 +57,16 @@ case class DebugOptions(
 trait HasMyParams {
   implicit val p: Parameters
   val cores = p(CoreParamsKey)
-  val debug = p(DebugOptionsKey).EnableDebug
   val XLEN  = cores.XLEN
   def xLen  = XLEN
+
+  val EnableHardDebug = p(DebugOptionsKey).EnableDebug
 
   // configurable:
   val IcachLineBytes   = 64
   val DcachLineBytes   = 64
   val basicBpuIdxWidth = 6
+  val HasHExtension    = false
 
   val IcachRoads       = 2
   val DcachRoads       = 2
@@ -56,8 +76,9 @@ trait HasMyParams {
   val enableBCache     = true
   // General Parameter for mycpu
   val excCodeWidth = 5
-  val PAddrBits    = 39
-  val VAddrBits    = 64
+  val PAddrBits    = 32
+  val VAddrBits    = 39
+  val GPAddrBits   = 41
   val tagWidth     = 20
   require(IcachLineBytes == 64 || IcachLineBytes == 32)
   require(DcachLineBytes == 64 || DcachLineBytes == 32)
@@ -67,7 +88,6 @@ trait HasMyParams {
   val DcacheIndexWidth  = 12 - DcacheOffsetWidth
   val instrWidth        = 32
   val dataWidth         = 32
-  val enableCacheInst   = true
   val immWidth          = 16
   def getAddrIdxI(word: UInt) = word(IcacheIndexWidth + IcacheOffsetWidth - 1, IcacheOffsetWidth)
   def getAddrIdxD(word: UInt) = word(DcacheIndexWidth + DcacheOffsetWidth - 1, DcacheOffsetWidth)

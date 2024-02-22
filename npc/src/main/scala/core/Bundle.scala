@@ -7,7 +7,6 @@ import core.cache._
 import macros.decode._
 
 /*==================== BASIC BUNDLE ====================*/
-
 class BasicExInfoBundle(implicit p: Parameters) extends CoreBundle {
   val pc   = Output(UWord)
   val isBd = Output(Bool())
@@ -62,54 +61,10 @@ class WbRobBundle(implicit p: Parameters) extends CoreBundle {
   val robIndex     = Output(UInt(robIndexWidth.W))
   val exDetect     = new DetectExInfoBundle
   val isMispredict = Output(Bool())
-  val debugPC      = if (debug) Some(UWord) else None
+  val debugPC      = if (EnableHardDebug) Some(UWord) else None
 }
 
 /*==================== 流水级OUT接口，不带valid-rdy ====================*/
-
-class PreIfOutIO(implicit p: Parameters) extends CoreBundle {
-  val npc         = Output(UInt(VAddrBits.W))
-  val isDelaySlot = Output(Bool()) // tell stage1 alignMask should be b0001
-  val flush       = Output(Bool())
-}
-
-//should be fast, because in one cycle
-class IfStage1ToPreIf(implicit p: Parameters) extends CoreBundle {
-  val pcVal      = Output(UInt(VAddrBits.W))
-  val predictRes = Output(Valid(UWord))
-}
-
-class FrontRedirctIO(implicit p: Parameters) extends CoreBundle {
-  val target = Output(UInt(VAddrBits.W))
-  val flush  = Output(Bool())
-}
-
-//can be slow, register will stage them
-class IfStage1OutIO(implicit p: Parameters) extends CoreBundle {
-  val alMask = Output(UInt(fetchNum.W))
-  // not order waiting
-  val bpuOut         = Vec(fetchNum, Output(new PredictResultBundle))
-  val bCacheHit      = Input(Vec(fetchNum, Bool()))
-  val pcVal          = Output(UInt(VAddrBits.W))
-  val tagOfInstGroup = Output(UInt(tagWidth.W))
-  val isUncached     = Output(Bool())
-  val exception      = Output(FrontExcCode())
-  val iCache         = new CacheStage1OutIO(IcachRoads, IcachLineBytes / 4, false)
-  val bCacheDst      = Output(Valid(UWord))
-}
-
-class IfStage2OutIO(implicit p: Parameters) extends CoreBundle {
-  val isBd          = Vec(fetchNum, Bool())
-  val isFirPreTake  = Vec(fetchNum, Bool())
-  val predictResult = Vec(fetchNum, new PredictResultBundle)
-  val realBrType    = Vec(fetchNum, BranchType())
-  val basicInstInfo = Vec(fetchNum, new BasicInstInfoBundle)
-  val validMask     = Vec(fetchNum, Bool())
-  val exception     = FrontExcCode()
-  val dsDstRedir    = new FrontRedirctIO
-  val isDSredir     = Bool()
-}
-
 class InstARegsIdxBundle(implicit p: Parameters) extends CoreBundle {
   val (src0, src1, dest) = (ARegIdx, ARegIdx, ARegIdx)
 }
@@ -138,7 +93,7 @@ class RsBasicEntry(implicit p: Parameters) extends CoreBundle {
   val destPregAddr = Output(UInt(pRegAddrWidth.W))
 
   val robIndex = Output(ROBIdx)
-  val debugPC  = if (debug) Some(UWord) else None
+  val debugPC  = if (EnableHardDebug) Some(UWord) else None
 
   val pSrcs     = Vec(srcDataNum, Output(PRegIdx))
   val prevPDest = Output(PRegIdx)
@@ -253,9 +208,9 @@ class ReadOpStageOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundl
   val exDetect     = new DetectExInfoBundle
   val destPregAddr = Output(UInt(pRegAddrWidth.W))
   val destAregAddr = Output(ARegIdx)
-  //val prevPDest    = Output(PRegIdx)
-  val prevData = Output(UWord)
-  // val debugPC  = if (debug) Some(Output(UWord)) else None
+  val prevPDest    = Output(PRegIdx)
+  val prevData     = Output(UWord)
+  val debugPC      = if (EnableHardDebug) Some(Output(UWord)) else None
 
   val uOp = new Bundle {
     val brType  = if (kind == FuType.MainAlu) Some(Output(BranchType())) else None

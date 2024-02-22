@@ -484,16 +484,15 @@ class BCache(implicit p: Parameters) extends CoreModule with BCacheHelp {
   val rTag = res.resp.data(32 + bCacheTagWidth - 1, 32)
   val rDst = res.resp.data(31, 0)
   if (enableBCache) {
-    asg(io.readRes.valid, rTag === getTag(RegEnable(io.readAddr.bits, io.readAddr.valid)))
-    asg(io.readRes.bits, rDst)
+    io.readRes.valid := rTag === getTag(RegEnable(io.readAddr.bits, io.readAddr.valid))
+    io.readRes.bits  := rDst
   } else {
-    asg(io.readRes.valid, false.B)
-    io.readRes.bits := DontCare
+    io.readRes.valid := false.B
+    io.readRes.bits  := DontCare
   }
 
   val wPC   = io.write.bits.pc
   val wDst  = io.write.bits.dst
-  val wData = Wire(UInt(ramWidth.W))
-  asg(wData, Cat(getTag(wPC), wDst))
+  val wData = Cat(getTag(wPC), wDst)
   ram.io.w(io.write.valid, wData, hash(wPC))
 }

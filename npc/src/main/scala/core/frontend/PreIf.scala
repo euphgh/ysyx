@@ -6,14 +6,6 @@ import utility._
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
-import scala.annotation.implicitNotFound
-
-/**
-  * flush:
-  *      exception/eret-----<retire>
-  *      mispredict occur-----<exe>
-  *      delayslot/target-----<ifStage2>
-  */
 
 /**
   * out.bits is calculated by alignMask, fromBpu and redirect
@@ -30,46 +22,26 @@ import scala.annotation.implicitNotFound
   * branch or jump but not valid delay branch
   * set automat status to use ds pc in next cycle when first branch valid is "10"
   * set automat status to give up ds pc when delaySlotOK is set
+  *
+  * flush:
+  *      exception/eret   ===> retire
+  *      mispredict occur ===> exe
+  *      delayslot/target ===> ifStage2
   */
-
-import chisel3.internal.firrtl._
-class UWire(wireWidth: Width) extends Bundle {
-  val uint = UInt(wireWidth)
-  def +(that: UWire) = uint + that.uint
-  def -(that: UWire) = uint - that.uint
-  def *(that: UWire) = uint * that.uint
-  def &(that: UWire) = uint & that.uint
-  def |(that: UWire) = uint | that.uint
-  def ^(that: UWire) = uint ^ that.uint
-  def :=(that: => Data): Unit = {
-    require(that.getWidth == uint.getWidth)
-    uint := that
-  }
-}
-
-object UWire {
-  def apply(uintWidth: Width): UWire = new UWire(uintWidth)
-}
-
 class PreIf(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
     val in = new Bundle {
-      val redirect  = Flipped(new FrontRedirctIO)
-      val fromIf1   = Flipped(new IfStage1ToPreIf)
-      val isDSredir = Input(Bool())
+      val redirect = Flipped(new FrontRedirctIO)
+      val fromIf1  = Flipped(new IfStage1ToPreIf)
     }
     val out = new PreIfOutIO
   })
-  asg(
-    io.out.npc,
-    MuxCase(
-      getAlignPC(io.in.fromIf1.pcVal),
-      Seq(
-        io.in.redirect.flush -> io.in.redirect.target,
-        io.in.fromIf1.predictRes.valid -> io.in.fromIf1.predictRes.bits
-      )
+  io.out.npc := MuxCase(
+    getAlignPC(io.in.fromIf1.pcVal),
+    Seq(
+      io.in.redirect.flush -> io.in.redirect.target,
+      io.in.fromIf1.predictRes.valid -> io.in.fromIf1.predictRes.bits
     )
   )
-  io.out.flush       := io.in.redirect.flush
-  io.out.isDelaySlot := io.in.isDSredir
+  io.out.flush := io.in.redirect.flush
 }

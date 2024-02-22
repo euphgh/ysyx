@@ -49,8 +49,6 @@ class CacheStage1OutIO(roads: Int, wordNum: Int, isDcache: Boolean)(implicit p: 
   val ddata     = if (isDcache) Some(Vec(roads, Output(UWord))) else None
   val dCacheReq = if (isDcache) Some(new CacheRWReq(lineBytes)) else None
   val dataline  = if (isDcache) Some(Vec(roads, Output(Vec(wordNum, UWord)))) else None
-  // Cache Inst
-  val cacheInst = if (enableCacheInst) Some(Valid(new CacheInstBundle)) else None
 }
 
 class CacheStage1In(isDcache: Boolean, lineBytes: Int)(implicit p: Parameters) extends CoreBundle {

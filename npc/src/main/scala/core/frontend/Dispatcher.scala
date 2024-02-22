@@ -242,8 +242,7 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
     Mux(hasMain && !isSSM, PriorityEncoderOH(subMask), PriorityEncoderOH(subMask))
   }
 
-  class FreeList(implicit p: Parameters)
-      extends MultiQueue(retireNum, dispatchNum, PRegIdx, freeListSize, false, true) {
+  class FreeList(implicit p: Parameters) extends MultiQueue(retireNum, dispatchNum, PRegIdx, freeListSize, false) {
     if (verilator) {
       //TODO: fix Difftest
       // val difftestFreeList = Module(new DifftestPhyRegInFreeList)
@@ -305,10 +304,11 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
     toRsB.destPregAddr := 0.U(pRegAddrWidth.W)
 
     //ready
-    slots(i).robReady            := io.out.toRob(i).ready
-    slots(i).pDestOk             := (slots(i).inst.aRegsIdx.dest === 0.U) //default
-    slots(i).rsReady             := false.B //default
-    if (debug) toRsB.debugPC.get := io.in.fromInstBuffer(i).bits.basicInstInfo.pcVal
+    slots(i).robReady := io.out.toRob(i).ready
+    slots(i).pDestOk  := (slots(i).inst.aRegsIdx.dest === 0.U) //default
+    slots(i).rsReady  := false.B //default
+
+    if (EnableHardDebug) toRsB.debugPC.get := io.in.fromInstBuffer(i).bits.basicInstInfo.pcVal
   })
 
   //deal with rsReady
