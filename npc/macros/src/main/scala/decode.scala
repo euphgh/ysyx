@@ -77,12 +77,13 @@ package object decode {
 
     val allInstr: InstrPat = Seq()
 
-    def decode(
+    def decode[T <: DCBundle](
       input:     UInt,
-      outputs:   DCBundle,
+      outputs:   T,
       minimizer: Minimizer = QMCMinimizer
     ) = {
       outputs := decoder(minimizer, input, mergeTable(outputs.defaultMap)).asTypeOf(outputs)
+      outputs
     }
 
     private def mergeTable(defaultValue: DBundleMap) = {

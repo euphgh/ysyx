@@ -5,6 +5,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import chisel3._
 import chisel3.util._
 import scala.util.Random
+import chiseltest.simulator.VerilatorFlags
 
 @DecodeMacro
 class TestBundle extends DCBundle {
@@ -35,7 +36,19 @@ class DecodeTest extends AnyFlatSpec with ChiselScalatestTester {
         val out = Output(new TestBundle)
       })
       Mips32Instr.decode(io.in, io.out)
-    }) { c =>
+    }).withAnnotations(
+      Seq(
+        VerilatorBackendAnnotation,
+        WriteFstAnnotation,
+        VerilatorFlags(
+          Seq(
+            "+define+RANDOMIZE_REG_INIT",
+            "+define+RANDOMIZE_MEM_INIT",
+            "-trace-fst"
+          )
+        )
+      )
+    ) { c =>
       c.io.in.poke(PatRand(Mips32Instr.ADD))
       c.io.out.srcType.expect(SRCType.RSRT)
       c.io.out.brType.expect(BranchType.NON)
