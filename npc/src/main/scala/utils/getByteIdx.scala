@@ -26,8 +26,8 @@ object StoreQUtils {
         Mux(deqPtr < enqPtr, (idx < enqPtr) && (idx >= deqPtr), idx(ptrWidth - 1) | realIdx < enqPtr)
       )
       when(matchWen(realIdx) && valid) {
-        asg(res, realIdx)
-        asg(getValid, true.B)
+        res      := realIdx
+        getValid := true.B
       }
     })
     (res, getValid)

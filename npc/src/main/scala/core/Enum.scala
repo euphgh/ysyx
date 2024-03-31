@@ -13,8 +13,8 @@ object DSTType extends ChiselEnum {
   val toRD, to31, toRT, noDST = Value
 }
 
-object ChiselFuType extends ChiselEnum {
-  val MainALU, SubALU, LSU, MDU = Value
+object HFuType extends ChiselEnum {
+  val alu, lsu, mdu = Value
 }
 
 object MduType extends ChiselEnum {
@@ -153,16 +153,15 @@ object DeExType extends ChiselEnum {
 object FuType extends Enumeration {
   type t = Value
   // 自动赋值枚举成员
-  val MainAlu, SubAlu, Lsu, Mdu = Value
-  def needOBpIn(input: Value) = input == MainAlu || input == SubAlu //|| input == Lsu
-  def needSBpIn(input: Value) = input == MainAlu || input == SubAlu || input == Lsu
+  val Alu, Lsu, Mdu = Value
+  def needOBpIn(input: Value) = input == Alu
+  def needSBpIn(input: Value) = input == Alu || input == Lsu
   def needBpIn(input:  Value) = needOBpIn(input) || needSBpIn(input)
 
   def oBpNum(input: Value): Int = input match {
-    case MainAlu => 2
-    case SubAlu  => 2
-    case Lsu     => 0
-    case Mdu     => 0
+    case alu => 2
+    case Lsu => 0
+    case Mdu => 0
   }
   def bpNum(input: Value): Int =
     if (needSBpIn(input)) (oBpNum(input) + 1) else oBpNum(input)

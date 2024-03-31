@@ -43,6 +43,7 @@ trait HasMyParams {
   val XLEN  = cores.XLEN
   def xLen  = XLEN
 
+  val EnableDebug = debug.EnableDebug
   // configurable:
   val IcachLineBytes   = 64
   val DcachLineBytes   = 64
@@ -92,15 +93,13 @@ trait HasMyParams {
     alignPC
   }
 
-  val predictNum  = 4
-  val fetchNum    = 4
-  val decodeNum   = 3
-  val renameNum   = 3
-  val dispatchNum = 3
-  val wBNum       = 3
-  val issueNum    = 4 //should be 4
-  val srcDataNum  = 2
-  val retireNum   = 3 //should be 4
+  val predictNum = 4
+  val fetchNum   = 4
+  val renameNum  = 3
+  val wBNum      = 3
+  val issueNum   = 4 //should be 4
+  val srcDataNum = 2
+  val retireNum  = 3 //should be 4
 
   val aRegNum       = 32
   val aRegAddrWidth = log2Up(aRegNum)
@@ -124,13 +123,9 @@ trait HasMyParams {
 
   val aluBypassNum = 2
 
-  val CP0IdxWidth = 8
-  def CP0Idx      = UInt(CP0IdxWidth.W)
-  def CP0Idx(sel: UInt, rd: UInt) = {
-    require(sel.getWidth == 3)
-    require(rd.getWidth == 5)
-    Cat(rd, sel)
-  }
+  val csrAddrWidth = 12
+  def CSRIdx       = UInt(csrAddrWidth.W)
+
   val verilator = true
 
   // val maOBpNum  = FuType.oBpNum(FuType.MainAlu)

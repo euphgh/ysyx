@@ -3,6 +3,8 @@ package core
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
+import macros.decode.DecodeMacro
+import macros.decode.DCBundle
 
 /*==================== BASIC BUNDLE ====================*/
 
@@ -40,14 +42,16 @@ class BasicInstInfoBundle(implicit p: Parameters) extends CoreBundle {
   * mduType ->  [Rs][Ro][Exe]mdu
   * specialType -> ROB
   */
-// @MacroDecode
-// class DecodeInstInfoBundle(implicit p: Parameters) extends CoreBundle {
-//   val specialType   = SpecialType.NON //带有Non，ROB里啥都有
-//   val aluType       = AluType.NON //带有Non，因为mAlu里不止走aluInst
-//   val memType       = MemType.NON //不带Non
-//   val mduType       = MduType.NON //不带Non
-//   val decodeExcType = DeExType.NON //靠解码就可以得到的例外，需要NON
-// }
+@DecodeMacro
+class DecodeInstInfoBundle extends DCBundle {
+  val specialType   = SpecialType.NON //带有Non，ROB里啥都有
+  val aluType       = AluType.NON //带有Non，因为mAlu里不止走aluInst
+  val memType       = MemType.NON //不带Non
+  val mduType       = MduType.NON //不带Non
+  val decodeExcType = DeExType.NON //靠解码就可以得到的例外，需要NON
+}
+
+class CtrlFlow(implicit val p: Parameters) extends DecodeInstInfoBundle with HasMyParams
 
 //no need a wen,pDest===0 means !wen
 class WPrfBundle(implicit p: Parameters) extends CoreBundle {
@@ -109,22 +113,21 @@ class IfStage2OutIO(implicit p: Parameters) extends CoreBundle {
 }
 
 class InstARegsIdxBundle(implicit p: Parameters) extends CoreBundle {
-  val (src0, src1, dest) = (ARegIdx, ARegIdx, ARegIdx)
+  val srcs = Vec(srcDataNum, ARegIdx)
+  val dest = ARegIdx
 }
 class InstBufferEntry(implicit p: Parameters) extends CoreBundle {
   val predictResult = new PredictResultBundle
   val realBrType    = BranchType()
   val basicInstInfo = new BasicInstInfoBundle
   val exception     = FrontExcCode()
-  val isBd          = Output(Bool())
-  val isFirPreTake  = Output(Bool())
 }
 class InstBufferOutIO(implicit p: Parameters) extends InstBufferEntry {
-  val whichFu  = ChiselFuType()
+  val whichFu  = HFuType()
   val aRegsIdx = new InstARegsIdxBundle
 }
 
-class SRATEntry(implicit p: Parameters) extends CoreBundle {
+class SrcRegMeta(implicit p: Parameters) extends CoreBundle {
   val pIdx  = Output(PRegIdx)
   val inPrf = Output(Bool())
 }
@@ -160,46 +163,30 @@ class RsBasicEntry(implicit p: Parameters) extends CoreBundle {
   *       so we can take the link addr in src2
   *   notice that for I-inst,it should take low16 bit of low26 as its src2
   */
-class RsOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundle {
-  val basic = new RsBasicEntry
+class MicroOp(implicit p: Parameters) extends CtrlFlow {
+  val currPDest = Output(PRegIdx)
+  val prevPDest = Output(PRegIdx)
 
-  val uOp = new Bundle {
-    val brType  = if (kind == FuType.MainAlu) Some(Output(BranchType())) else None
-    val aluType = if (kind == FuType.MainAlu || kind == FuType.SubAlu) Some(Output(AluType())) else None
-    val memType = if (kind == FuType.Lsu) Some(Output(MemType())) else None
-    val mduType = if (kind == FuType.Mdu) Some(Output(MduType())) else None
-  }
+  val robIndex = Output(ROBIdx)
+  // val debugPC  = if (debug) Some(UWord) else None
 
-  val c0Addr    = if (kind == FuType.Mdu) Some(Output(CP0Idx)) else None
-  val immOffset = if (kind == FuType.Lsu || kind == FuType.SubAlu) Some(Output(UInt(immWidth.W))) else None
-  val cacheOp   = if (kind == FuType.Lsu) Some(Output(CacheOp())) else None
-  val pcVal     = if (kind == FuType.Lsu) Some(Output(UWord)) else None
-  val mAluExtra =
-    if (kind == FuType.MainAlu) Some(new Bundle {
-      val pcVal         = Output(UWord) //用于updateBpu.pc 以及计算 dsPc
-      val low26         = Output(UInt(26.W)) //携带有immoffset
-      val predictResult = new PredictResultBundle
-    })
-    else None
+  val pSrcs = Vec(srcDataNum, new SrcRegMeta)
 }
+
 class RsRealOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundle {
-  val origin    = new RsOutIO(kind: FuType.t)
+  // val origin    = new RsOutIO
   val inPrf     = Output(Vec(srcDataNum, Bool()))
   val mayNeedBp = Output(Vec(srcDataNum, Bool()))
 }
 
-class RobSavedUop(implicit p: Parameters) extends CoreBundle {
-  val prevPDest   = PRegIdx // free when retire
-  val currPDest   = PRegIdx // updata A-RAT when retire
-  val currADest   = ARegIdx // updata A-RAT when retire
-  val specialType = SpecialType()
-  val isSingle    = Bool()
+class DestRegMeta(implicit p: Parameters) extends CoreBundle {
+  val prevPDest = PRegIdx // free when retire
+  val currPDest = PRegIdx // updata A-RAT when retire
+  val currADest = ARegIdx // updata A-RAT when retire
 }
-class DispatchToRobBundle(implicit p: Parameters) extends CoreBundle {
-  val basicExInfo  = new BasicExInfoBundle //PC ALSO use as difftest check execution flow
-  val uOp          = new RobSavedUop
-  val isNoBrMis    = Output(Bool())
-  val isFirPreTake = Output(Bool())
+
+class DispatchToRobIO(implicit p: Parameters) extends CoreBundle {
+  val destRegMeta = new DestRegMeta
 }
 
 /**
@@ -253,18 +240,18 @@ class ReadOpStageOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundl
   val destAregAddr = Output(ARegIdx)
   //val prevPDest    = Output(PRegIdx)
   val prevData = Output(UWord)
-  // val debugPC  = if (debug) Some(Output(UWord)) else None
+  val debugPC  = if (EnableDebug) Some(Output(UWord)) else None
 
   val uOp = new Bundle {
-    val brType  = if (kind == FuType.MainAlu) Some(Output(BranchType())) else None
-    val aluType = if (kind == FuType.MainAlu || kind == FuType.SubAlu) Some(Output(AluType())) else None
+    val brType  = if (kind == FuType.Alu) Some(Output(BranchType())) else None
+    val aluType = if (kind == FuType.Alu || kind == FuType.Alu) Some(Output(AluType())) else None
     val memType = if (kind == FuType.Lsu) Some(Output(MemType())) else None
     val mduType = if (kind == FuType.Mdu) Some(Output(MduType())) else None
   }
   val srcData = Vec(2, Output(UInt(dataWidth.W)))
 
   val branch =
-    if (kind == FuType.MainAlu) Some(new Bundle {
+    if (kind == FuType.Alu) Some(new Bundle {
       val realTarget  = Output(UWord)
       val realBtbType = Output(BtbType())
       val predict     = new PredictResultBundle
