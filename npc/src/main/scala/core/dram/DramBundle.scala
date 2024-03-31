@@ -4,7 +4,6 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
 import core.CoreBundle
-import freechips.rocketchip.tile
 
 object BurstType extends ChiselEnum {
   val FIXED    = Value("b00".U)

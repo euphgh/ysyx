@@ -188,7 +188,7 @@ import utility._
   * @param dataGen
   * @param ptrGen
   */
-class BaseMultiPortBuffer[D <: Data, P <: CircularQueuePtr[P]](
+class BaseMultiPortBuffer[D <: Data](
   enqWidth: Int,
   deqWidth: Int,
   size:     Int,

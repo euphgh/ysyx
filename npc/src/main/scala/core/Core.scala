@@ -12,19 +12,4 @@ class Core(implicit p: Parameters) extends CoreModule {
     val in  = Input(UInt(32.W))
     val out = Input(UInt(32.W))
   })
-
-  // @ MacroDecode
-  class IBdecodeOut(implicit p: Parameters) extends CoreBundle {
-    val srcType = SRCType()
-    val dstType = DSTType()
-    val whichFu = ChiselFuType()
-  }
-
-  import chisel3.util.experimental.decode.QMCMinimizer
-  val subDecode = Wire(new IBdecodeOut)
-  subDecode.elements
-
-  // subDecode.decode(io.in, AllInsts(), AllInsts.default(), QMCMinimizer)
-
-  io.out := subDecode.asUInt
 }

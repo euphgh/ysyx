@@ -37,97 +37,72 @@ class InstBuffer(implicit p: Parameters) extends CoreModule {
     val flush = Input(Bool())
   })
   // sub decode ==================================================
-  val ib = Module(new MultiQueue(fetchNum, decodeNum, new InstBufferEntry, 8, true))
+  // val ib = Module(new MultiQueue(fetchNum, decodeNum, new InstBufferEntry, 8, true))
+  val ib = new BaseMultiPortBuffer(fetchNum, decodeNum, 8, new InstBufferEntry) {}
 
   // avoid icReq(if1) -> iCache data out(if2) -> instbuffer full ->
   // dispatch lsu -> lsu wait iCache instr finish
   asg(ib.io.flush, io.flush)
   // input ========================================================
   (0 until fetchNum).foreach(i => {
-    val pushBits = ib.io.push(i).bits
+    val pushBits = ib.io.in(i).bits
     val inBits   = io.in.bits
-    ib.io.push(i).valid    := inBits.validMask(i) && io.in.valid
+    ib.io.in(i).valid      := inBits.validMask(i) && io.in.valid
     pushBits.basicInstInfo := inBits.basicInstInfo(i)
     pushBits.predictResult := inBits.predictResult(i)
     pushBits.exception     := inBits.exception
-    pushBits.isBd          := false.B
     pushBits.realBrType    := inBits.realBrType(i)
     pushBits.isFirPreTake  := inBits.isFirPreTake(i)
   })
-  io.in.ready := ib.io.push(0).ready // any number is ok
+  io.in.ready := ib.io.in(0).ready // any number is ok
 
   // >> Assert ========================================================
   val validMask = io.in.bits.validMask.asUInt
   when(io.in.valid) {
-    assert(
-      validMask === "b0000".U || validMask === "b0001".U ||
-        validMask === "b0011".U || validMask === "b0111".U || validMask === "b1111".U
-    )
+    assert(PriorityCount.consecutive(validMask))
   }
-  val ibRdy = VecInit.tabulate(fetchNum)(i => ib.io.push(i).ready)
+  val ibRdy = VecInit.tabulate(fetchNum)(i => ib.io.in(i).ready)
   assert(ibRdy(0) === ibRdy(1))
   assume(ibRdy(0) === ibRdy(2))
   assert(ibRdy(0) === ibRdy(3))
 
   // output ========================================================
   List.tabulate(decodeNum)(i => {
-    val outBits = io.out(i).bits
-    val ibPop   = ib.io.pop(i).bits
-    outBits.basicInstInfo := ibPop.basicInstInfo
-    outBits.exception     := ibPop.exception
-    outBits.predictResult := ibPop.predictResult
-    outBits.realBrType    := ibPop.realBrType
-    outBits.isBd          := ibPop.isBd
-    outBits.isFirPreTake  := ibPop.isFirPreTake
-    io.out(i).valid       := ib.io.pop(i).valid
-    ib.io.pop(i).ready    := io.out(i).ready
+    ConnectByName(io.out(i).bits, ib.io.out(i).bits)
+    io.out(i).valid    := ib.io.out(i).valid
+    ib.io.out(i).ready := io.out(i).ready
   })
 
   @DecodeMacro
   class IBdecodeOut extends DCBundle {
-    val srcType = SRCType()
-    val dstType = DSTType()
-    val whichFu = ChiselFuType()
+    val srcType = NumSrcReg()
+    val dstType = HasDstReg()
+    val whichFu = HFuType()
   }
   import chisel3.util.experimental.decode.QMCMinimizer
   val subDecode = Wire(Vec(decodeNum, new IBdecodeOut))
 
   (0 until decodeNum).foreach(i => {
-    val outBits      = io.out(i).bits
-    val outAregIdx   = outBits.aRegsIdx
-    val instr        = outBits.basicInstInfo.instr
-    val (rs, rt, rd) = (instr(25, 21), instr(20, 16), instr(15, 11))
+    val outBits    = io.out(i).bits
+    val outAregIdx = outBits.aRegsIdx
+    val instr      = outBits.basicInstInfo.instr
+
+    val (rs1, rs2, rd) = (instr(19, 15), instr(24, 20), instr(11, 7))
+
     RV64I.decode(instr, subDecode(i))
     asg(outBits.whichFu, subDecode(i).whichFu)
-    outAregIdx.src0 := LookupEnumDefault(subDecode(i).srcType, rs)(Seq(SRCType.RT -> rt, SRCType.noSRC -> 0.U))
-    outAregIdx.src1 := Mux(subDecode(i).srcType === SRCType.RSRT, rt, 0.U)
-    outAregIdx.dest := LookupEnum(
-      subDecode(i).dstType,
-      Seq(DSTType.toRT -> rt, DSTType.toRD -> rd, DSTType.to31 -> 31.U, DSTType.noDST -> 0.U)
-    )
+
+    outAregIdx.src0 := Mux(subDecode(i).srcType.isOneOf(NumSrcReg.one, NumSrcReg.two), rs1, 0.U)
+    outAregIdx.src1 := Mux(subDecode(i).srcType === NumSrcReg.one, rs2, 0.U)
+    outAregIdx.dest := Mux(subDecode(i).dstType === HasDstReg.yes, rd, 0.U)
   })
 
-  /**
-    * isBd:
-    *   handle in Instfetch
-    *   need flush signal
-    */
-  (1 until decodeNum).foreach(i => {
-    val lstOutBits = io.out(i - 1).bits
-    val outBits    = io.out(i).bits
-    outBits.isBd := lstOutBits.realBrType =/= BranchType.NON
-  })
-
-  val dsReg      = RegInit(false.B)
-  val outFireNum = PriorityCount(WireInit(VecInit((0 until decodeNum).map(i => io.out(i).fire))))
-  when(io.out(0).fire) { dsReg := false.B }
-  when(outFireNum > 0.U) {
-    (0 until decodeNum).map(i => {
-      when(i.U === (outFireNum - 1.U) && io.out(i).bits.realBrType =/= BranchType.NON) {
-        dsReg := true.B
-      }
-    })
+  def ConnectByName(left: Bundle, right: Bundle) = {
+    left.elements.foreach {
+      case (lname, lele) =>
+        val rPair = right.elements.find { case (rname, _) => lname == rname }
+        if (rPair.isDefined)
+          lele := rPair.get._2
+    }
   }
-  asg(io.out(0).bits.isBd, dsReg)
-  when(io.flush) { dsReg := false.B }
 }

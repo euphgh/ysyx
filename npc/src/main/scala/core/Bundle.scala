@@ -43,11 +43,9 @@ class BasicInstInfoBundle(implicit p: Parameters) extends CoreBundle {
   */
 @DecodeMacro
 class DecodeInstInfoBundle extends DCBundle {
-  val specialType   = SpecialType.NON //带有Non，ROB里啥都有
-  val aluType       = AluType.NON //带有Non，因为mAlu里不止走aluInst
-  val memType       = MemType.NON //不带Non
-  val mduType       = MduType.NON //不带Non
-  val decodeExcType = DeExType.NON //靠解码就可以得到的例外，需要NON
+  val aluType = AluType()
+  val memType = MemType()
+  val mduType = MduType()
 }
 
 //no need a wen,pDest===0 means !wen
@@ -73,11 +71,10 @@ class InstBufferEntry(implicit p: Parameters) extends CoreBundle {
   val realBrType    = BranchType()
   val basicInstInfo = new BasicInstInfoBundle
   val exception     = FrontExcCode()
-  val isBd          = Output(Bool())
   val isFirPreTake  = Output(Bool())
 }
 class InstBufferOutIO(implicit p: Parameters) extends InstBufferEntry {
-  val whichFu  = ChiselFuType()
+  val whichFu  = HFuType()
   val aRegsIdx = new InstARegsIdxBundle
 }
 
@@ -146,11 +143,10 @@ class RsRealOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundle {
 }
 
 class RobSavedUop(implicit p: Parameters) extends CoreBundle {
-  val prevPDest   = PRegIdx // free when retire
-  val currPDest   = PRegIdx // updata A-RAT when retire
-  val currADest   = ARegIdx // updata A-RAT when retire
-  val specialType = SpecialType()
-  val isSingle    = Bool()
+  val prevPDest = PRegIdx // free when retire
+  val currPDest = PRegIdx // updata A-RAT when retire
+  val currADest = ARegIdx // updata A-RAT when retire
+  val isSingle  = Bool()
 }
 class DispatchToRobBundle(implicit p: Parameters) extends CoreBundle {
   val basicExInfo  = new BasicExInfoBundle //PC ALSO use as difftest check execution flow

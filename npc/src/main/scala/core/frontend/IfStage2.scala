@@ -7,7 +7,6 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
 import core.cache._
-import core.dram._
 import macros.decode._
 
 class BtbWIO(implicit p: Parameters) extends CoreBundle {
@@ -42,10 +41,14 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
   val io = IO(new Bundle {
     val in        = Flipped(Decoupled(new IfStage1OutIO))
     val out       = Decoupled(new IfStage2OutIO)
-    val imem      = new DramReadIO
     val btbDeq    = Decoupled(new BtbWIO)
-    val dsGoIf2   = Input(Bool())
     val backFlush = Input(Bool())
+
+    val icache = new Bundle {
+      val resp = Flipped(Decoupled(new ICache.Resp))
+      val ctrl = Flipped(new ICache.Ctrl)
+    }
+
     // must in this stage, becasue it use first valid btbType
     val rasPush = Valid(UWord)
     val rasPop  = Output(Bool())
@@ -72,54 +75,34 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
   val firstPredTake = VecInit(PriorityEncoderOH(validBranch))
   // Update RAS ==================================
   val firValidBtbType = getByVB(bpuout.map(_.btbType))
-  io.rasPush.valid := firValidBtbType === BtbType.jcall && io.out.fire && hasBranch
-  io.rasPop        := firValidBtbType === BtbType.jret && io.out.fire && hasBranch
+  io.rasPush.valid := firValidBtbType === BtbType.push && io.out.fire && hasBranch
+  io.rasPop        := firValidBtbType === BtbType.pop && io.out.fire && hasBranch
   io.rasPush.bits  := getByVB((0 until fetchNum).map(i => Cat((pc(XLEN - 1, 2) + i.U + 2.U), pc(1, 0))))
 
-  def getIntrBrType(instr: UInt): BranchType.Type = {
-    @DecodeMacro
-    class IF2PreDecodeOut extends DCBundle {
-      val brType = BranchType.NON
-    }
+  def getIntrBrType(instr: UInt): ICache.UserData = {
+    require(instr.getWidth == XLEN)
     import chisel3.util.experimental.decode.QMCMinimizer
-    require(instr.getWidth == 32)
-    RV64I.decode(instr, new IF2PreDecodeOut).brType
+    RV64I.decode(instr, new ICache.UserData)
   }
 
   val inValidMask = Mux(hasBranch, beforeBr & alignMask, alignMask)
-  val icache2     = Module(new CacheStage2(IcachRoads, IcachLineBytes, false, BranchType())(getIntrBrType))
-  icache2.io.in.valid           := io.in.valid
-  io.in.ready                   := icache2.io.in.ready
-  icache2.io.in.bits.fromStage1 := io.in.bits.iCache
-  icache2.io.in.bits.cancel     := io.in.bits.exception =/= FrontExcCode.NONE
-  icache2.io.in.bits.isUncached := io.in.bits.isUncached
-  icache2.io.in.bits.ptag       := io.in.bits.tagOfInstGroup
-  icache2.io.in.bits.imask.get  := VecInit(inValidMask.asBools)
-  val iCacheInst = Wire(Flipped(Valid(new ICacheInstIO)))
-  iCacheInst.valid := false.B
-  iCacheInst.bits  := DontCare
-  io.imem.ar <> icache2.dram.ar
-  io.imem.r <> icache2.dram.r
-  icache2.dram.aw <> DontCare
-  icache2.dram.w <> DontCare
-  icache2.dram.b <> DontCare
   (0 until fetchNum).foreach(i => {
     val outBasic = outBits.basicInstInfo(i)
     val inPcVal  = inBits.pcVal
     outBasic.pcVal       := Cat(inPcVal(XLEN - 1, instrOffMsb + 1), inPcVal(instrOffMsb, instrOffLsb) + i.U, inPcVal(1, 0))
-    outBasic.instr       := icache2.io.out.bits.idata.get(i)
+    outBasic.instr       := io.icache.resp.bits.data
     outBits.validMask(i) := inValidMask(i)
   })
   outBits.exception    := inBits.exception
-  io.out.valid         := icache2.io.out.valid
-  icache2.io.out.ready := io.out.ready || !io.in.valid
+  io.out.valid         := io.icache.resp.valid
+  io.icache.resp.ready := io.out.ready || !io.in.valid
 
   //predecode
   (0 until fetchNum).foreach(i => {
     val instr = io.out.bits.basicInstInfo(i).instr
 
-    val realBrType = icache2.io.out.bits.toUser(i)
-    when(icache2.io.out.valid) {
+    val realBrType = io.icache.resp.bits.toUser(i)
+    when(io.icache.resp.valid) {
       assert(realBrType === getIntrBrType(instr))
     }
     outBits.realBrType(i) := realBrType
