@@ -46,7 +46,11 @@ class IfStage1(implicit p: Parameters) extends CoreModule with BCacheHelp {
     val in      = Flipped(new PreIfOutIO)
     val out     = Decoupled(new IfStage1OutIO)
     val toPreIf = new IfStage1ToPreIf
-    val tlb     = new TlbRequestIO
+
+    val icache = new Bundle {
+      val req  = Decoupled(new ICache.Req)
+      val ctrl = new ICache.Ctrl
+    }
 
     // BPU
     val bCacheW = Flipped(Valid(new BCacheWIO))
@@ -83,10 +87,10 @@ class IfStage1(implicit p: Parameters) extends CoreModule with BCacheHelp {
   val bHitOut = outBits.bCacheHit
   (0 until fetchNum).foreach(i => {
     bpuRes(i).btbType := btb.readRes(i).instType
-    bpuRes(i).target  := Mux(bpuRes(i).btbType =/= BtbType.jret, btb.readRes(i).target, ras.io.topData)
+    bpuRes(i).target  := Mux(bpuRes(i).btbType =/= BtbType.pop, btb.readRes(i).target, ras.io.topData)
     bpuRes(i).counter := pht.readRes(i)
     val brTake   = Mux(lht.readRes(i).cnt < 14.U, pht.readRes(i) > 1.U, lht.readRes(i).take)
-    val isTakeBr = brTake && bpuRes(i).btbType === BtbType.b
+    val isTakeBr = brTake && bpuRes(i).btbType === BtbType.branch
     val isTakeJp = BtbType.isJump(bpuRes(i).btbType)
     bpuRes(i).taken := isTakeJp || isTakeBr
     bHitRes(i)      := bpuRes(i).target === bCache.io.readRes.bits && bCache.io.readRes.valid
@@ -160,11 +164,9 @@ class IfStage1(implicit p: Parameters) extends CoreModule with BCacheHelp {
   // =============================================================================
   // ================================ Cache ======================================
   // =============================================================================
-  val icache1 = Module(new CacheStage1(IcachRoads, IcachLineBytes, false))
-  icache1.io.in.valid                 := update
-  icache1.io.in.bits.ifReq.get.index  := getAddrIdxI(npc)
-  icache1.io.in.bits.ifReq.get.offset := getOffsetI(npc)
-  io.out.bits.iCache <> icache1.io.out
+  io.icache.req.valid := update
+  io.icache.req.bits  := npc
+
   // Mask and Dest
   import chisel3.util.experimental.decode._
   io.out.bits.alMask := decoder(
@@ -185,16 +187,8 @@ class IfStage1(implicit p: Parameters) extends CoreModule with BCacheHelp {
   io.toPreIf.pcVal      := pc
   io.out.bits.pcVal     := pc
 
-  // TLB
-  val (toITLB, fromITLB) = (io.tlb.req, io.tlb.resp)
-  toITLB.valid := RegNext(update, true.B) && !outBits.tlbResp.valid
-  toITLB.bits  := TlbReq(pc)
-
-  io.out.bits.tlbResp.valid := ValidHold(fromITLB.valid, io.out.fire, update)
-  io.out.bits.tlbResp.bits  := HoldUnless(fromITLB.bits, fromITLB.valid)
-
   // pipeline out
-  io.out.valid := true.B
+  io.out.valid := io.icache.ctrl
 
   // Reset for 512
   val resetCnt = Counter(512)

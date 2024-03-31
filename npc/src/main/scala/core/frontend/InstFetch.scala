@@ -8,6 +8,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import core.dram._
 import core.mmu._
+import core.cache.ICache
 
 class InstFetch(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
@@ -23,13 +24,17 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
   val preIfStage = Module(new PreIf)
   val ifStage1   = Module(new IfStage1)
   val ifStage2   = Module(new IfStage2)
-  val dsGoIf2    = WireInit(ifStage1.io.out.fire)
+  val icache     = Module(new ICache)
+
+  ifStage2.io.icache.resp <> icache.io.resp
+  ifStage1.io.icache.req <> icache.io.req
+  ifStage1.io.icache.ctrl <> icache.io.ctrl
+  ifStage2.io.icache.ctrl <> icache.io.ctrl
 
   preIfStage.io.in.redirect := FrontRedirctIO.merge(io.redirect, ifStage2.io.out.bits.redirect)
 
   //If1 in
   ifStage1.io.in := preIfStage.io.out
-  ifStage1.io.tlb <> io.tlb
 
   //IF2 in
   PipelineConnect(
@@ -39,8 +44,6 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
     io.redirect.flush
   )
   ifStage2.io.backFlush := io.redirect.flush
-  ifStage2.io.dsGoIf2   := dsGoIf2
-  ifStage2.io.imem <> io.imem
   io.out <> ifStage2.io.out
 
   // ifStage2 update BPU
@@ -65,14 +68,16 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
   val if2OutWen      = Wire(Vec(fetchNum, Bool()))
   val if2OutTarget   = Wire(Vec(fetchNum, UWord))
   val if2OutInstType = Wire(Vec(fetchNum, BtbType()))
-  (0 until fetchNum).foreach(i => {
+  (0 until fetchNum).foreach { i =>
     import BranchType._
     val pc = Cat(if2Wio.tagIdx, if2Wio.instrOff(i), 0.U(2.W))
+    val instr: RInstr = if2Wio.instr(i).asTypeOf(new RInstr()(p))
+    val brDest = calDest(if2Wio.brType(i), instr, pc)
     require(pc.getWidth == 32)
-    if2OutWen(i)      := ifStage2.io.btbDeq.valid && if2Wio.valid(i) && (isB(if2Wio.brType(i)) || isJ(if2Wio.brType(i)))
-    if2OutTarget(i)   := getDst(if2Wio.brType(i), if2Wio.instr(i), pc)
-    if2OutInstType(i) := toBtbType(if2Wio.brType(i), if2Wio.instr(i)(25, 21))
-  })
+    if2OutWen(i)      := ifStage2.io.btbDeq.valid && if2Wio.valid(i) && (brDest.avaliable)
+    if2OutTarget(i)   := brDest.dest
+    if2OutInstType(i) := toBtbType(if2Wio.brType(i), instr.rs1, instr.rd)
+  }
 
   (0 until fetchNum).map(i => {
     val sel = VecInit((0 until fetchNum).map(j => { if2Wio.instrOff(j)(1, 0) === i.U }))

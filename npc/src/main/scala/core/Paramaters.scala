@@ -3,6 +3,7 @@ package core
 import org.chipsalliance.cde.config.{Field, Parameters}
 import chisel3._
 import chisel3.util._
+import core.cache.ICacheParams
 
 case object SoCParamsKey extends Field[SoCParameters]
 
@@ -25,20 +26,21 @@ trait HasSoCParameter {
 case object CoreParamsKey extends Field[CoreParams]
 
 case class CoreParams(
-  IcachLineBytes:   Int     = 64,
-  DcachLineBytes:   Int     = 64,
-  basicBpuIdxWidth: Int     = 6,
-  IcachRoads:       Int     = 2,
-  DcachRoads:       Int     = 2,
-  retAddrStackSize: Int     = 8,
-  storeQSize:       Int     = 8,
-  tlbEntriesNum:    Int     = 4,
-  enableBCache:     Boolean = true,
-  XLEN:             Int     = 64,
-  HasMExtension:    Boolean = false,
-  HasCExtension:    Boolean = false,
-  HasHExtension:    Boolean = false,
-  AddrBits:         Boolean = false)
+  IcachLineBytes:   Int          = 64,
+  DcachLineBytes:   Int          = 64,
+  basicBpuIdxWidth: Int          = 6,
+  IcachRoads:       Int          = 2,
+  DcachRoads:       Int          = 2,
+  retAddrStackSize: Int          = 8,
+  storeQSize:       Int          = 8,
+  tlbEntriesNum:    Int          = 4,
+  enableBCache:     Boolean      = true,
+  XLEN:             Int          = 64,
+  HasMExtension:    Boolean      = false,
+  HasCExtension:    Boolean      = false,
+  HasHExtension:    Boolean      = false,
+  AddrBits:         Boolean      = false,
+  icacheParams:     ICacheParams = ICacheParams())
 
 case object DebugOptionsKey extends Field[DebugOptions]
 
