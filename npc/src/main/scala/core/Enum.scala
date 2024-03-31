@@ -4,38 +4,52 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
 import utility._
+import core._
 
-object SRCType extends ChiselEnum {
-  val RSRT, RS, RT, noSRC = Value
+object NumSrcReg extends ChiselEnum {
+  val zero, one, two = Value
 }
 
-object DSTType extends ChiselEnum {
-  val toRD, to31, toRT, noDST = Value
+object HasDstReg extends ChiselEnum {
+  val no, yes = Value
 }
 
-object ChiselFuType extends ChiselEnum {
-  val MainALU, SubALU, LSU, MDU = Value
+object HFuType extends ChiselEnum {
+  val alu, lsu, mdu, bru = Value
 }
 
-object MduType extends ChiselEnum {
-  // block
-  val MULT, MULTU, MUL         = Value
-  val MADD, MADDU, MSUB, MSUBU = Value
-  val DIV, DIVU                = Value
-  val CLZ                      = Value
-  val TLBP                     = Value
-  // through
-  val MFHI, MFLO, MTHI, MTLO = Value
-  val MTC0, MFC0             = Value
-  val TLBR, TLBWI, TLBWR     = Value
-  val NON                    = Value
-  def isC0Inst(op: MduType.Type): Bool = op === MTC0 || op === MFC0
+abstract class FuOpType extends ChiselEnum {
+  def apply() = UInt(256.W).asTypeOf(Type())
+  def X       = BitPat("b???????")
 }
-object SpecialType extends ChiselEnum {
-  val NON, LOAD, STORE, MTC0, MTHI, MTLO, MULDIV, ERET, CACHEINST, HB, TLB = Value
-  def isSingle(op: SpecialType.Type) = {
-    op.isOneOf(MTC0, MTHI, MTLO, MULDIV)
+
+object MduType extends FuOpType {
+  val mul, mulh, mulhu, mulhsu, mulw         = Value
+  val div, divu, divw, divuw                 = Value
+  val rem, remu, remw, remuw                 = Value
+  val csrrw, csrrs, csrrc                    = Value
+  val ecall, ebreak, wfi, sfence, sret, mret = Value
+}
+
+object MemType extends FuOpType {
+  val fence, fencei  = Value
+  val ld, lw, lh, lb = Value
+  val lwu, lhu, lbu  = Value
+  val sd, sw, sb, sh = Value
+  val sc, lr         = Value
+
+  def isLoad(op: MemType.Type) = {
+    op.isOneOf(lb, lbu, lh, lhu, lw, lwu, ld, lr)
   }
+  def isStore(op: MemType.Type) = {
+    op.isOneOf(sb, sh, sw, sd, sc)
+  }
+}
+
+object AluType extends FuOpType {
+  val lui, slt, sltu, xor, or, and    = Value
+  val sll, srl, sra, sllw, sraw, srlw = Value
+  val add, sub, addw, subw            = Value
 }
 
 //not need now
@@ -43,111 +57,44 @@ object BlockType extends ChiselEnum {
   val CACHEINST, SYNC, MFC0, NON = Value
 }
 
-object MemType extends ChiselEnum {
-  // group word
-  val LW = Value("b0000".U)
-  val SW = Value("b0001".U)
-  // group left
-  val LWL = Value("b0010".U)
-  val SWL = Value("b0011".U)
-  // group right
-  val LWR = Value("b0100".U)
-  val SWR = Value("b0101".U)
-  //cacheinst
-  val CACHEINST = Value("b0110".U)
-  val NON       = Value("b0111".U)
-  // group byte0
-  val LB  = Value("b1000".U)
-  val LBU = Value("b1001".U)
-  val SB  = Value("b1010".U)
-  // group half
-  val LH  = Value("b1100".U)
-  val LHU = Value("b1101".U)
-  val SH  = Value("b1110".U)
+object BranchType extends FuOpType {
+  val none, beq, bne, blt, bge, bltu, bgeu, jal, jalr = Value
+  def isB(op: BranchType.Type): Bool = op.isOneOf(beq, bne, blt, bge, bltu, bgeu)
 
-  val LL = Value("b10000".U)
-  val SC = Value("b10001".U)
+  // //cond
+  // def eq(op:     BranchType.Type): Bool = op === BEQ
+  // def ne(op:     BranchType.Type): Bool = op === BNE
+  // def gez(op:    BranchType.Type): Bool = op === BGEZ || op === BGEZAL
+  // def gtz(op:    BranchType.Type): Bool = op === BGTZ
+  // def lez(op:    BranchType.Type): Bool = op === BLEZ
+  // def ltz(op:    BranchType.Type): Bool = op === BLTZ || op === BLTZAL
+  // def noCond(op: BranchType.Type): Bool = isJ(op) || isJr(op)
+  // //trans
 
-  def wordPat  = BitPat("b?000?")
-  def leftPat  = BitPat("b0001?")
-  def rightPat = BitPat("b0010?")
-  def bytePat  = BitPat("b010??")
-  def halfPat  = BitPat("b011??")
-  def isLoad(op: MemType.Type) = {
-    op.isOneOf(LW, LL, LB, LBU, LH, LHU, LWL, LWR)
-  }
-  def isStore(op: MemType.Type) = {
-    op.isOneOf(SW, SC, SWL, SWR, SB, SH)
-  }
-}
-object BranchType extends ChiselEnum {
-  val NON, BEQ, BNE, BGEZ, BLEZ, BLTZ, BGTZ, BLTZAL, BGEZAL, J, JAL, JR, JALR, JRHB = Value
-  def isJr(op: BranchType.Type): Bool = op === JR || op === JALR || op === JRHB
-  def isJ(op:  BranchType.Type): Bool = op === J || op === JAL
-  def isB(op:  BranchType.Type): Bool =
-    op === BEQ || op === BNE || op === BGEZ || op === BLEZ || op === BLTZ || op === BGTZ || op === BLTZAL || op === BGEZAL
-  def isAL(op: BranchType.Type): Bool =
-    op === BLTZAL || op === BGEZAL || op === JAL || op === JALR
-  //cond
-  def eq(op:     BranchType.Type): Bool = op === BEQ
-  def ne(op:     BranchType.Type): Bool = op === BNE
-  def gez(op:    BranchType.Type): Bool = op === BGEZ || op === BGEZAL
-  def gtz(op:    BranchType.Type): Bool = op === BGTZ
-  def lez(op:    BranchType.Type): Bool = op === BLEZ
-  def ltz(op:    BranchType.Type): Bool = op === BLTZ || op === BLTZAL
-  def noCond(op: BranchType.Type): Bool = isJ(op) || isJr(op)
-  //trans
-  def toBtbType(op: BranchType.Type, rs: UInt): BtbType.Type =
+  import BtbType.isLink
+  def toBtbType(op: BranchType.Type, rs1: UInt, rd: UInt): BtbType.Type =
     MuxCase(
-      BtbType.non,
+      BtbType.none,
       Seq(
-        isB(op) -> BtbType.b,
-        isAL(op) -> BtbType.jcall, //非B类AL: jal jalr
-        (op === JR && rs.andR) -> BtbType.jret, //rs===31
-        (op === JR) -> BtbType.jr, //not jr 31
-        (op === J) -> BtbType.jmp
+        isB(op) -> BtbType.branch,
+        (!isLink(rd) && !isLink(rs1)) -> BtbType.none,
+        (!isLink(rd) && isLink(rs1)) -> BtbType.pop,
+        (isLink(rd) && !isLink(rs1)) -> BtbType.push,
+        (isLink(rd) && isLink(rs1) && (rs1 =/= rd)) -> BtbType.both,
+        (isLink(rd) && isLink(rs1) && (rs1 === rd)) -> BtbType.push
       )
     )
-  def isBr(op: BranchType.Type): Bool = op =/= NON
-  def getDst(brType: BranchType.Type, instr: UInt, pc: UInt) = { // only generate not R
-    require(instr.getWidth == 32)
-    require(pc.getWidth == 32)
-    val imm               = instr(15, 0)
-    val dsPcVal           = pc + 4.U(32.W)
-    val (isJr, isJ, isAl) = (BranchType.isJr(brType), BranchType.isJ(brType), BranchType.isAL(brType))
-    val bDest             = SignExt(Cat(imm, 0.U(2.W)), 32) + dsPcVal
-    val jDest             = Cat(dsPcVal(31, 28), instr(25, 0), 0.U(2.W))
-    Mux(isJ, jDest, bDest)
-  }
-}
-object AluType extends ChiselEnum {
-  val NON, ADD, ADDI, ADDU, ADDIU, SUB, SUBU, AND, ANDI, OR, ORI, XOR, XORI, NOR, SLT, SLTI, SLTU, SLTIU, SLL, SRL, SRA,
-    SLLV, SRLV, SRAV, LUI, MOVN, MOVZ, TRAPEQ, TRAPNE = Value
-  def useAdd(op:  AluType.Type): Bool = op === ADD || op === ADDI || op === ADDU || op === ADDIU
-  def useSub(op:  AluType.Type): Bool = op === SUB || op === SUBU
-  def useAnd(op:  AluType.Type): Bool = op === AND || op === ANDI
-  def useOr(op:   AluType.Type): Bool = op === OR || op === ORI
-  def useXor(op:  AluType.Type): Bool = op === XOR || op === XORI
-  def useNor(op:  AluType.Type): Bool = op === NOR
-  def useSlt(op:  AluType.Type): Bool = op === SLT || op === SLTI
-  def useSltu(op: AluType.Type): Bool = op === SLTU || op === SLTIU
-  def useSll(op:  AluType.Type): Bool = op === SLL || op === SLLV
-  def useSrl(op:  AluType.Type): Bool = op === SRL || op === SRLV
-  def useSra(op:  AluType.Type): Bool = op === SRA || op === SRAV
-  def useLui(op:  AluType.Type): Bool = op === LUI
 
-  def useImm(op: AluType.Type): Bool =
-    op === ADDI || op === ADDIU || op === ANDI || op === ORI || op === XORI || op === SLTI || op === SLTIU || op === LUI
-  def zeroExt(op: AluType.Type): Bool =
-    op === ANDI || op === ORI || op === XORI
-  def mayOverflow(op: AluType.Type): Bool = op === ADD || op === ADDI || op === SUB
-  def isSll(op:       AluType.Type): Bool = op === SLL
-  def isSrl(op:       AluType.Type): Bool = op === SRL
-  def isSra(op:       AluType.Type): Bool = op === SRA
-  def needSa(op:      AluType.Type): Bool = isSll(op) || isSrl(op) || isSra(op)
-}
-object DeExType extends ChiselEnum {
-  val RI, SYS, BP, NON = Value
+  case class BrDest(avaliable: Bool, dest: UInt)
+  def calDest(brType: BranchType.Type, instr: RInstr, pc: UInt)(implicit p: Parameters): BrDest = {
+    require(instr.getWidth == 32)
+    require(pc.getWidth == VAddrBits)
+    val imm4to1   = Mux(isB(brType), instr(11, 8), instr(24, 21))
+    val imm11Bits = Mux(isB(brType), instr(7), instr(20))
+    val imm19to12 = Mux(isB(brType), instr(19, 12), Fill(19 - 12, instr(31)))
+    val imm       = Cat(instr(31), imm19to12, imm11Bits, instr(30, 25), imm4to1, 0.U(2.W))
+    BrDest(!brType.isOneOf(jalr, none), pc + SignExt(imm, VAddrBits))
+  }
 }
 
 object FuType extends Enumeration {
@@ -169,12 +116,13 @@ object FuType extends Enumeration {
 }
 
 object BtbType extends ChiselEnum {
-  val non, b = Value
-  val jcall  = Value("b100".U)
-  val jret   = Value("b101".U)
-  val jmp    = Value("b110".U)
-  val jr     = Value("b111".U)
+  val none, branch = Value
+  val jump         = Value("b100".U)
+  val push         = Value("b110".U)
+  val pop          = Value("b101".U)
+  val both         = Value("b111".U)
   def isJump(brType: BtbType.Type) = brType.asUInt(2).asBool
+  def isLink(index:  UInt)         = index === 1.U || index === 5.U
 }
 
 object CCAttr extends ChiselEnum {

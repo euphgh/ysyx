@@ -3,6 +3,33 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 
 package object core {
+  class RInstr(implicit p: Parameters) extends CoreBundle {
+    val opcode = UInt(7.W)
+    val rd     = UInt(5.W)
+    val funct3 = UInt(3.W)
+    val rs1    = UInt(5.W)
+    val rs2    = UInt(5.W)
+    val funct7 = UInt(7.W)
+    def apply(index: Int) = this.asUInt(index)
+    def apply(msb:   Int, lsb: Int) = this.asUInt(msb, lsb)
+  }
+
+  object RInstr {
+    def fromUInt(uint: UInt)(implicit p: Parameters): RInstr = {
+      require(uint.getWidth == 32)
+      uint.asTypeOf(new RInstr)
+    }
+  }
+
+  class VAddr(implicit p: Parameters) extends CoreBundle {
+    val inner = UInt(VAddrBits.W)
+  }
+
+  implicit def RInstr2UInt(instr: RInstr): UInt = instr.asUInt
+  implicit def UInt2RInstr(instr: UInt)(implicit p: Parameters): RInstr = instr.asTypeOf(new RInstr)
+  implicit def VAddr2UInt(vaddr:  VAddr): UInt = vaddr.asUInt
+  implicit def UInt2VAddr(vaddr:  UInt)(implicit p: Parameters): VAddr = vaddr.asTypeOf(new VAddr)
+
   object SrcType {
     def reg = "b00".U
     def pc  = "b01".U
@@ -96,11 +123,6 @@ package object core {
   //     mou.litValue -> "mou"
   //   )
   // }
-
-  object FuOpType {
-    def apply() = UInt(7.W)
-    def X       = BitPat("b???????")
-  }
 
   object CommitType {
     def NORMAL = "b000".U // int/fp
