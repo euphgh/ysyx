@@ -64,21 +64,21 @@ class WbRobBundle(implicit p: Parameters) extends CoreBundle {
 
 /*==================== 流水级OUT接口，不带valid-rdy ====================*/
 class InstARegsIdxBundle(implicit p: Parameters) extends CoreBundle {
-  val (src0, src1, dest) = (ARegIdx, ARegIdx, ARegIdx)
+  val srcs = Vec(srcDataNum, ARegIdx)
+  val dest = ARegIdx
 }
 class InstBufferEntry(implicit p: Parameters) extends CoreBundle {
   val predictResult = new PredictResultBundle
   val realBrType    = BranchType()
   val basicInstInfo = new BasicInstInfoBundle
   val exception     = FrontExcCode()
-  val isFirPreTake  = Output(Bool())
 }
 class InstBufferOutIO(implicit p: Parameters) extends InstBufferEntry {
   val whichFu  = HFuType()
   val aRegsIdx = new InstARegsIdxBundle
 }
 
-class SRATEntry(implicit p: Parameters) extends CoreBundle {
+class SrcRegMeta(implicit p: Parameters) extends CoreBundle {
   val pIdx  = Output(PRegIdx)
   val inPrf = Output(Bool())
 }
@@ -114,30 +114,18 @@ class RsBasicEntry(implicit p: Parameters) extends CoreBundle {
   *       so we can take the link addr in src2
   *   notice that for I-inst,it should take low16 bit of low26 as its src2
   */
-class RsOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundle {
-  val basic = new RsBasicEntry
+class MicroOp(implicit p: Parameters) extends CtrlFlow {
+  val currPDest = Output(PRegIdx)
+  val prevPDest = Output(PRegIdx)
 
-  val uOp = new Bundle {
-    val brType  = if (kind == FuType.MainAlu) Some(Output(BranchType())) else None
-    val aluType = if (kind == FuType.MainAlu || kind == FuType.SubAlu) Some(Output(AluType())) else None
-    val memType = if (kind == FuType.Lsu) Some(Output(MemType())) else None
-    val mduType = if (kind == FuType.Mdu) Some(Output(MduType())) else None
-  }
+  val robIndex = Output(ROBIdx)
+  // val debugPC  = if (debug) Some(UWord) else None
 
-  val c0Addr    = if (kind == FuType.Mdu) Some(Output(CP0Idx)) else None
-  val immOffset = if (kind == FuType.Lsu || kind == FuType.SubAlu) Some(Output(UInt(immWidth.W))) else None
-  val cacheOp   = if (kind == FuType.Lsu) Some(Output(CacheOp())) else None
-  val pcVal     = if (kind == FuType.Lsu) Some(Output(UWord)) else None
-  val mAluExtra =
-    if (kind == FuType.MainAlu) Some(new Bundle {
-      val pcVal         = Output(UWord) //用于updateBpu.pc 以及计算 dsPc
-      val low26         = Output(UInt(26.W)) //携带有immoffset
-      val predictResult = new PredictResultBundle
-    })
-    else None
+  val pSrcs = Vec(srcDataNum, new SrcRegMeta)
 }
+
 class RsRealOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundle {
-  val origin    = new RsOutIO(kind: FuType.t)
+  // val origin    = new RsOutIO
   val inPrf     = Output(Vec(srcDataNum, Bool()))
   val mayNeedBp = Output(Vec(srcDataNum, Bool()))
 }
@@ -148,11 +136,15 @@ class RobSavedUop(implicit p: Parameters) extends CoreBundle {
   val currADest = ARegIdx // updata A-RAT when retire
   val isSingle  = Bool()
 }
-class DispatchToRobBundle(implicit p: Parameters) extends CoreBundle {
-  val basicExInfo  = new BasicExInfoBundle //PC ALSO use as difftest check execution flow
-  val uOp          = new RobSavedUop
-  val isNoBrMis    = Output(Bool())
-  val isFirPreTake = Output(Bool())
+
+class DestRegMeta(implicit p: Parameters) extends CoreBundle {
+  val prevPDest = PRegIdx // free when retire
+  val currPDest = PRegIdx // updata A-RAT when retire
+  val currADest = ARegIdx // updata A-RAT when retire
+}
+
+class DispatchToRobIO(implicit p: Parameters) extends CoreBundle {
+  val destRegMeta = new DestRegMeta
 }
 
 /**
@@ -209,15 +201,15 @@ class ReadOpStageOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundl
   val debugPC      = if (EnableHardDebug) Some(Output(UWord)) else None
 
   val uOp = new Bundle {
-    val brType  = if (kind == FuType.MainAlu) Some(Output(BranchType())) else None
-    val aluType = if (kind == FuType.MainAlu || kind == FuType.SubAlu) Some(Output(AluType())) else None
+    val brType  = if (kind == FuType.Alu) Some(Output(BranchType())) else None
+    val aluType = if (kind == FuType.Alu || kind == FuType.Alu) Some(Output(AluType())) else None
     val memType = if (kind == FuType.Lsu) Some(Output(MemType())) else None
     val mduType = if (kind == FuType.Mdu) Some(Output(MduType())) else None
   }
   val srcData = Vec(2, Output(UInt(dataWidth.W)))
 
   val branch =
-    if (kind == FuType.MainAlu) Some(new Bundle {
+    if (kind == FuType.Alu) Some(new Bundle {
       val realTarget  = Output(UWord)
       val realBtbType = Output(BtbType())
       val predict     = new PredictResultBundle
