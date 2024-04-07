@@ -5,6 +5,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import utility._
 import core._
+import freechips.rocketchip.tile.CoreParams
 
 object NumSrcReg extends ChiselEnum {
   val zero, one, two = Value
@@ -87,13 +88,18 @@ object BranchType extends FuOpType {
 
   case class BrDest(avaliable: Bool, dest: UInt)
   def calDest(brType: BranchType.Type, instr: RInstr, pc: UInt)(implicit p: Parameters): BrDest = {
-    require(instr.getWidth == 32)
-    require(pc.getWidth == VAddrBits)
-    val imm4to1   = Mux(isB(brType), instr(11, 8), instr(24, 21))
-    val imm11Bits = Mux(isB(brType), instr(7), instr(20))
-    val imm19to12 = Mux(isB(brType), instr(19, 12), Fill(19 - 12, instr(31)))
-    val imm       = Cat(instr(31), imm19to12, imm11Bits, instr(30, 25), imm4to1, 0.U(2.W))
-    BrDest(!brType.isOneOf(jalr, none), pc + SignExt(imm, VAddrBits))
+    val scope = new CoreScope {
+      def deleg(brType: BranchType.Type, instr: RInstr, pc: UInt): BrDest = {
+        require(instr.getWidth == 32)
+        require(pc.getWidth == VAddrBits)
+        val imm4to1   = Mux(isB(brType), instr(11, 8), instr(24, 21))
+        val imm11Bits = Mux(isB(brType), instr(7), instr(20))
+        val imm19to12 = Mux(isB(brType), instr(19, 12), Fill(19 - 12, instr(31)))
+        val imm       = Cat(instr(31), imm19to12, imm11Bits, instr(30, 25), imm4to1, 0.U(2.W))
+        BrDest(!brType.isOneOf(jalr, none), pc + SignExt(imm, VAddrBits))
+      }
+    }
+    scope.deleg(brType, instr, pc)
   }
 }
 

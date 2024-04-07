@@ -12,7 +12,7 @@ import core.dram._
 class Frontend(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
     val redirect = Flipped(new FrontRedirctIO)
-    val out      = Vec(decodeNum, Decoupled(new InstBufferOutIO))
+    val out      = Vec(renameNum, Decoupled(new InstBufferOutIO))
 
     val tlbSearch   = new TLBSearchIO
     val imem        = new DramReadIO

@@ -261,4 +261,3 @@ class RoStage(fuKind: FuType.t)(implicit p: Parameters) extends CoreModule {
     io.wSrat.valid := io.out.fire
   }
 }
->

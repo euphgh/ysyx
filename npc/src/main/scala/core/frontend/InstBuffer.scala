@@ -33,12 +33,12 @@ import macros.decode._
 class InstBuffer(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
     val in    = Flipped(Decoupled(new IfStage2OutIO))
-    val out   = Vec(decodeNum, Decoupled(new InstBufferOutIO))
+    val out   = Vec(renameNum, Decoupled(new InstBufferOutIO))
     val flush = Input(Bool())
   })
   // sub decode ==================================================
   // val ib = Module(new MultiQueue(fetchNum, decodeNum, new InstBufferEntry, 8, true))
-  val ib = new BaseMultiPortBuffer(fetchNum, decodeNum, 8, new InstBufferEntry) {}
+  val ib = new BaseMultiPortBuffer(fetchNum, renameNum, 8, new InstBufferEntry) {}
 
   // avoid icReq(if1) -> iCache data out(if2) -> instbuffer full ->
   // dispatch lsu -> lsu wait iCache instr finish
@@ -67,7 +67,7 @@ class InstBuffer(implicit p: Parameters) extends CoreModule {
   assert(ibRdy(0) === ibRdy(3))
 
   // output ========================================================
-  List.tabulate(decodeNum)(i => {
+  List.tabulate(renameNum)(i => {
     ConnectByName(io.out(i).bits, ib.io.out(i).bits)
     io.out(i).valid    := ib.io.out(i).valid
     ib.io.out(i).ready := io.out(i).ready
@@ -80,9 +80,9 @@ class InstBuffer(implicit p: Parameters) extends CoreModule {
     val whichFu = HFuType()
   }
   import chisel3.util.experimental.decode.QMCMinimizer
-  val subDecode = Wire(Vec(decodeNum, new IBdecodeOut))
+  val subDecode = Wire(Vec(renameNum, new IBdecodeOut))
 
-  (0 until decodeNum).foreach(i => {
+  (0 until renameNum).foreach(i => {
     val outBits    = io.out(i).bits
     val outAregIdx = outBits.aRegsIdx
     val instr      = outBits.basicInstInfo.instr

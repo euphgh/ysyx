@@ -71,7 +71,7 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
   (0 until fetchNum).foreach { i =>
     import BranchType._
     val pc = Cat(if2Wio.tagIdx, if2Wio.instrOff(i), 0.U(2.W))
-    val instr: RInstr = if2Wio.instr(i).asTypeOf(new RInstr()(p))
+    val instr: RInstr = if2Wio.instr(i).asTypeOf(new RInstr()(this.p))
     val brDest = calDest(if2Wio.brType(i), instr, pc)
     require(pc.getWidth == 32)
     if2OutWen(i)      := ifStage2.io.btbDeq.valid && if2Wio.valid(i) && (brDest.avaliable)

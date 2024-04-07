@@ -404,7 +404,7 @@ class BranchTargetBuffer(implicit p: Parameters) extends BasicBPU(new BtbOutIO()
   override def missFunc(entry: BtbOutIO, addr: UInt): BtbOutIO = {
     val out = Wire(new BtbOutIO)
     out.target   := addr + 8.U
-    out.instType := BtbType.non
+    out.instType := BtbType.none
     out
   }
 }

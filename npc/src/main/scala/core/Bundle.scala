@@ -59,7 +59,7 @@ class WbRobBundle(implicit p: Parameters) extends CoreBundle {
   val robIndex     = Output(UInt(robIndexWidth.W))
   val exDetect     = new DetectExInfoBundle
   val isMispredict = Output(Bool())
-  val debugPC      = if (EnableHardDebug) Some(UWord) else None
+  val debugPC      = if (EnableDebug) Some(UWord) else None
 }
 
 /*==================== 流水级OUT接口，不带valid-rdy ====================*/
@@ -90,7 +90,7 @@ class RsBasicEntry(implicit p: Parameters) extends CoreBundle {
   val destPregAddr = Output(UInt(pRegAddrWidth.W))
 
   val robIndex = Output(ROBIdx)
-  val debugPC  = if (EnableHardDebug) Some(UWord) else None
+  val debugPC  = if (EnableDebug) Some(UWord) else None
 
   val pSrcs     = Vec(srcDataNum, Output(PRegIdx))
   val prevPDest = Output(PRegIdx)
@@ -100,6 +100,8 @@ class RsBasicEntry(implicit p: Parameters) extends CoreBundle {
 
   val wbInfo = Vec(wBNum, Output(PRegIdx))
 }
+
+class CtrlFlow(implicit val p: Parameters) extends DecodeInstInfoBundle with HasMyParams
 
 /**
   * Lsu/sAlu extra:imm
@@ -198,7 +200,7 @@ class ReadOpStageOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundl
   val destAregAddr = Output(ARegIdx)
   val prevPDest    = Output(PRegIdx)
   val prevData     = Output(UWord)
-  val debugPC      = if (EnableHardDebug) Some(Output(UWord)) else None
+  val debugPC      = if (EnableDebug) Some(Output(UWord)) else None
 
   val uOp = new Bundle {
     val brType  = if (kind == FuType.Alu) Some(Output(BranchType())) else None
