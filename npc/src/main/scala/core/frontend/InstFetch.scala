@@ -13,11 +13,11 @@ import core.cache.ICache
 class InstFetch(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
 
-    val redirect = Flipped(new FrontRedirctIO)
+    val redirect = FrontRedirct.input()
     val out      = Decoupled(new IfStage2OutIO)
 
-    val tlb         = new TLBSearchIO
-    val imem        = new DramReadIO
+    val ptw         = new TlbPtwIO()
+    val imem        = new DramReadIO()
     val bpuUpdateIn = Flipped(new BpuUpdateIO)
   })
 
@@ -31,7 +31,7 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
   ifStage1.io.icache.ctrl <> icache.io.ctrl
   ifStage2.io.icache.ctrl <> icache.io.ctrl
 
-  preIfStage.io.in.redirect := FrontRedirctIO.merge(io.redirect, ifStage2.io.out.bits.redirect)
+  preIfStage.io.in.redirect := FrontRedirct.merge(io.redirect, ifStage2.io.out.bits.redirect)
 
   //If1 in
   ifStage1.io.in := preIfStage.io.out
@@ -41,9 +41,9 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
     ifStage1.io.out,
     ifStage2.io.in,
     ifStage2.io.out.fire,
-    io.redirect.flush
+    io.redirect.valid
   )
-  ifStage2.io.backFlush := io.redirect.flush
+  ifStage2.io.backFlush := io.redirect.valid
   io.out <> ifStage2.io.out
 
   // ifStage2 update BPU
@@ -66,7 +66,7 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
   val if2AssignBtb = Wire(new BtbAssignBundle)
   if2AssignBtb.tagIdx := if2Wio.tagIdx
   val if2OutWen      = Wire(Vec(fetchNum, Bool()))
-  val if2OutTarget   = Wire(Vec(fetchNum, UWord))
+  val if2OutTarget   = Wire(Vec(fetchNum, UInt32))
   val if2OutInstType = Wire(Vec(fetchNum, BtbType()))
   (0 until fetchNum).foreach { i =>
     import BranchType._

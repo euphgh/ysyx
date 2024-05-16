@@ -9,12 +9,6 @@ import org.chipsalliance.cde.config._
 import core.mmu._
 import core.cache._
 
-class ICacheInstIO(implicit p: Parameters) extends CoreBundle {
-  val op    = CacheOp()
-  val taglo = UWord
-  val index = UInt(IcacheIndexWidth.W)
-}
-
 /**
   * not connect by pipeline
   * out.pcVal = regEnable(preIFOutIO.npc, fire)
@@ -56,7 +50,7 @@ class IfStage1(implicit p: Parameters) extends CoreModule with BCacheHelp {
     val bCacheW = Flipped(Valid(new BCacheWIO))
     val btbWen  = new BtbUpdateIO
     val phtWen  = new PhtUpdateIO
-    val rasPush = Flipped(Valid(UWord))
+    val rasPush = Flipped(Valid(UInt32))
     val rasPop  = Input(Bool())
   })
 

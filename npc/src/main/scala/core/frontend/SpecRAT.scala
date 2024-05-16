@@ -7,17 +7,6 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
 
-class RATWriteBackIO(implicit p: Parameters) extends CoreBundle {
-  val aDest = ARegIdx
-  val pDest = PRegIdx
-}
-
-class MispreSignal(implicit p: Parameters) extends CoreBundle {
-  val happen     = Output(Bool())
-  val realTarget = Output(UWord)
-  val robIdx     = Output(ROBIdx)
-}
-
 /**
   * inst just read from srat
   *   WB and GRP write srat
@@ -32,9 +21,9 @@ class SpecRAT(implicit p: Parameters) extends CoreModule {
     val src = Vec(
       renameNum,
       Vec(
-        srcDataNum,
+        srcRegNum,
         new Bundle {
-          val in  = Input(ARegIdx) //to get srcs p
+          val in  = Input(ARegIdx()) //to get srcs p
           val out = Output(new SrcRegMeta) //srcs p
         }
       )
@@ -42,22 +31,22 @@ class SpecRAT(implicit p: Parameters) extends CoreModule {
     val dest = Vec(
       renameNum,
       new Bundle {
-        val currPDest = Flipped(Valid(PRegIdx)) //to write in
-        val currADest = Input(ARegIdx) //to get prev
-        val prevPDest = Output(PRegIdx) //prev
+        val currPDest = Flipped(Valid(PRegIdx())) //to write in
+        val currADest = Input(ARegIdx()) //to get prev
+        val prevPDest = Output(PRegIdx()) //prev
       }
     )
     val wb      = Vec(wBNum, Flipped(Valid(new RATWriteBackIO)))
     val recover = Flipped(Valid(Vec(aRegNum, new SrcRegMeta)))
   })
 
-  val pIdxMap = RegInit(VecInit((0 until aRegNum).map(i => i.U(pRegAddrWidth.W))))
+  val pIdxMap = RegInit(VecInit((0 until aRegNum).map(i => PRegIdx(i))))
   val inPrf   = RegInit(VecInit(Seq.fill(aRegNum)(true.B)))
 
   //read from srat
   //num0 areg will get preg=0,inprf=1
   (0 until renameNum).foreach(i => {
-    (0 until srcDataNum).foreach(j => {
+    (0 until srcRegNum).foreach(j => {
       io.src(i)(j).out.inPrf := inPrf(io.src(i)(j).in)
       io.src(i)(j).out.pIdx  := pIdxMap(io.src(i)(j).in)
     })
@@ -71,7 +60,7 @@ class SpecRAT(implicit p: Parameters) extends CoreModule {
 
       // bypass write back
       (0 until renameNum).foreach { renameIdx =>
-        (0 until srcDataNum).foreach { srcsNumIdx =>
+        (0 until srcRegNum).foreach { srcsNumIdx =>
           when(io.wb(i).bits.aDest === io.src(renameIdx)(srcsNumIdx).in) {
             io.src(renameIdx)(srcsNumIdx).out.inPrf := true.B
           }
@@ -90,7 +79,7 @@ class SpecRAT(implicit p: Parameters) extends CoreModule {
       inPrf(io.dest(i).currADest)   := false.B
       // bypass write back
       (i until renameNum).foreach { renameIdx =>
-        (0 until srcDataNum).foreach { srcsNumIdx =>
+        (0 until srcRegNum).foreach { srcsNumIdx =>
           when(io.dest(i).currADest === io.src(renameIdx)(srcsNumIdx).in) {
             io.src(renameIdx)(srcsNumIdx).out.pIdx  := io.dest(i).currPDest.bits
             io.src(renameIdx)(srcsNumIdx).out.inPrf := false.B

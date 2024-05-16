@@ -33,16 +33,16 @@ import macros.decode._
 class InstBuffer(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
     val in    = Flipped(Decoupled(new IfStage2OutIO))
-    val out   = Vec(decodeNum, Decoupled(new InstBufferOutIO))
+    val out   = Vec(renameNum, Decoupled(new InstBufferOutIO))
     val flush = Input(Bool())
   })
   // sub decode ==================================================
-  // val ib = Module(new MultiQueue(fetchNum, decodeNum, new InstBufferEntry, 8, true))
-  val ib = new BaseMultiPortBuffer(fetchNum, decodeNum, 8, new InstBufferEntry) {}
+  // val ib = Module(new MultiQueue(fetchNum, renameNum, new InstBufferEntry, 8, true))
+  val ib = new BaseMultiPortBuffer(fetchNum, renameNum, 8, new InstBufferEntry) {}
 
   // avoid icReq(if1) -> iCache data out(if2) -> instbuffer full ->
   // dispatch lsu -> lsu wait iCache instr finish
-  asg(ib.io.flush, io.flush)
+  ib.io.flush := io.flush
   // input ========================================================
   (0 until fetchNum).foreach(i => {
     val pushBits = ib.io.in(i).bits
@@ -52,7 +52,6 @@ class InstBuffer(implicit p: Parameters) extends CoreModule {
     pushBits.predictResult := inBits.predictResult(i)
     pushBits.exception     := inBits.exception
     pushBits.realBrType    := inBits.realBrType(i)
-    pushBits.isFirPreTake  := inBits.isFirPreTake(i)
   })
   io.in.ready := ib.io.in(0).ready // any number is ok
 
@@ -67,8 +66,8 @@ class InstBuffer(implicit p: Parameters) extends CoreModule {
   assert(ibRdy(0) === ibRdy(3))
 
   // output ========================================================
-  List.tabulate(decodeNum)(i => {
-    ConnectByName(io.out(i).bits, ib.io.out(i).bits)
+  List.tabulate(renameNum)(i => {
+    Connect.byType(io.out(i).bits, ib.io.out(i).bits)
     io.out(i).valid    := ib.io.out(i).valid
     ib.io.out(i).ready := io.out(i).ready
   })
@@ -77,12 +76,12 @@ class InstBuffer(implicit p: Parameters) extends CoreModule {
   class IBdecodeOut extends DCBundle {
     val srcType = NumSrcReg()
     val dstType = HasDstReg()
-    val whichFu = HFuType()
+    val whichFu = FuType()
   }
   import chisel3.util.experimental.decode.QMCMinimizer
-  val subDecode = Wire(Vec(decodeNum, new IBdecodeOut))
+  val subDecode = Wire(Vec(renameNum, new IBdecodeOut))
 
-  (0 until decodeNum).foreach(i => {
+  (0 until renameNum).foreach(i => {
     val outBits    = io.out(i).bits
     val outAregIdx = outBits.aRegsIdx
     val instr      = outBits.basicInstInfo.instr
@@ -90,19 +89,11 @@ class InstBuffer(implicit p: Parameters) extends CoreModule {
     val (rs1, rs2, rd) = (instr(19, 15), instr(24, 20), instr(11, 7))
 
     RV64I.decode(instr, subDecode(i))
-    asg(outBits.whichFu, subDecode(i).whichFu)
+    outBits.whichFu := subDecode(i).whichFu
 
-    outAregIdx.src0 := Mux(subDecode(i).srcType.isOneOf(NumSrcReg.one, NumSrcReg.two), rs1, 0.U)
-    outAregIdx.src1 := Mux(subDecode(i).srcType === NumSrcReg.one, rs2, 0.U)
-    outAregIdx.dest := Mux(subDecode(i).dstType === HasDstReg.yes, rd, 0.U)
+    outAregIdx.srcs(0) := Mux(subDecode(i).srcType.isOneOf(NumSrcReg.one, NumSrcReg.two), rs1, 0.U)
+    outAregIdx.srcs(1) := Mux(subDecode(i).srcType === NumSrcReg.one, rs2, 0.U)
+    outAregIdx.dest    := Mux(subDecode(i).dstType === HasDstReg.yes, rd, 0.U)
   })
 
-  def ConnectByName(left: Bundle, right: Bundle) = {
-    left.elements.foreach {
-      case (lname, lele) =>
-        val rPair = right.elements.find { case (rname, _) => lname == rname }
-        if (rPair.isDefined)
-          lele := rPair.get._2
-    }
-  }
 }

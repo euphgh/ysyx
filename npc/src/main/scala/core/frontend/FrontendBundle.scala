@@ -19,28 +19,7 @@ class PreIfOutIO(implicit p: Parameters) extends CoreBundle {
 //should be fast, because in one cycle
 class IfStage1ToPreIf(implicit p: Parameters) extends CoreBundle {
   val pcVal      = Output(UInt(VAddrBits.W))
-  val predictRes = Output(Valid(UWord))
-}
-
-class FrontRedirctIO(implicit p: Parameters) extends CoreBundle {
-  val target = Output(UInt(VAddrBits.W))
-  val flush  = Output(Bool())
-}
-
-object FrontRedirctIO {
-  def apply(flush: Bool, target: UInt)(implicit p: Parameters) = {
-    val ret = new FrontRedirctIO
-    ret.flush  := flush
-    ret.target := target
-    ret
-  }
-
-  // Merge by priority, first parameters has highest priority
-  def merge(redirects: FrontRedirctIO*)(implicit p: Parameters) = {
-    val flush  = ParallelOR(redirects.map(_.flush))
-    val target = ParallelPriorityMux(redirects.map(r => (r.flush, r.target)))
-    apply(flush, target)
-  }
+  val predictRes = Output(Valid(UInt32))
 }
 
 //can be slow, register will stage them
@@ -54,7 +33,7 @@ class IfStage1OutIO(implicit p: Parameters) extends CoreBundle {
   val isUncached     = Output(Bool())
   val exception      = Output(FrontExcCode())
   val iCache         = new CacheStage1OutIO(IcachRoads, IcachLineBytes / 4, false)
-  val bCacheDst      = Output(Valid(UWord))
+  val bCacheDst      = Output(Valid(UInt32))
   val tlbResp        = Valid(new TlbResp)
 }
 
@@ -65,5 +44,5 @@ class IfStage2OutIO(implicit p: Parameters) extends CoreBundle {
   val basicInstInfo = Vec(fetchNum, new BasicInstInfoBundle)
   val validMask     = Vec(fetchNum, Bool())
   val exception     = FrontExcCode()
-  val redirect      = new FrontRedirctIO
+  val redirect      = FrontRedirct.output()
 }

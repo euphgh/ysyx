@@ -8,6 +8,16 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import chisel3.experimental.conversions._
 
+class Decoder(implicit p: Parameters) extends CoreModule {
+  val io = IO(new Bundle {
+    val in = new Bundle {
+      val instr     = UInt32
+      val exception = FrontExcCode()
+    }
+    val out = new CtrlFlow
+  })
+}
+
 class dispatchSlot(implicit p: Parameters) extends CoreBundle {
   val inst  = new InstBufferOutIO
   val valid = Output(Bool())
@@ -17,15 +27,15 @@ class dispatchSlot(implicit p: Parameters) extends CoreBundle {
   val rsReady  = Output(Bool()) // rs avaliable
   val readyGo  = Output(Bool())
 
-  val sratPsrcs     = Vec(srcDataNum, new SrcRegMeta)
-  val sratPrevPDest = Output(PRegIdx)
-  val grpPsrcs      = Vec(srcDataNum, new SrcRegMeta)
-  val grpPrevPDest  = Output(PRegIdx)
+  val sratPsrcs     = Vec(srcRegNum, new SrcRegMeta)
+  val sratPrevPDest = Output(PRegIdx())
+  val grpPsrcs      = Vec(srcRegNum, new SrcRegMeta)
+  val grpPrevPDest  = Output(PRegIdx())
   val grpWaw        = Output(Bool())
 
   val toRsBasic = new RsBasicEntry
   val decoded   = new DecodeInstInfoBundle
-  val prevPDest = Output(PRegIdx)
+  val prevPDest = Output(PRegIdx())
 }
 
 /**
@@ -48,10 +58,10 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
     val in = new Bundle {
       val fromIBuffer = Vec(renameNum, Flipped(Valid(new InstBufferOutIO)))
       val fuWbSrat    = Vec(wBNum, Flipped(Valid(new RATWriteBackIO)))
-      val robIndex    = Input(ROBIdx)
+      val robIdx      = Input(RobPtr())
     }
 
-    val fronRedirect = new FrontRedirctIO
+    val fronRedirect = new FrontRedirct
 
     val recover = new Bundle {
       val SpecRAT  = Flipped(Valid(Vec(aRegNum, new SrcRegMeta)))
@@ -94,8 +104,8 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
 
     srat.io.src(index).zipWithIndex.foreach {
       case (rport, rindex) =>
-        rport.in   := fromIBuffer.aRegsIdx.srcs(rindex)
-        slot.pSrcs := rport.out
+        rport.in       := fromIBuffer.aRegsIdx.srcs(rindex)
+        slot.pRegsMeta := rport.out
     }
     val freeListPopIndex = PopCount((0 until index).map { j =>
       val valid    = io.in.fromIBuffer(j).valid
@@ -110,7 +120,7 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
     sratDest.currPDest.valid := allReady
     slot.prevPDest           := sratDest.prevPDest
     slot.currPDest           := freeList.io.pop(freeListPopIndex).bits.pRegIdx
-    slot.robIndex            := io.in.robIndex + (index.U)
+    slot.robIdx              := io.in.robIdx + (index.U)
   }
 
   val validIOSlots = io.in.fromIBuffer.zipWithIndex.map {
@@ -120,12 +130,13 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
       validIOSlot.valid := fromIBuffer.valid
       validIOSlot
   }
-  def connectRS(fuType: HFuType.Type) =
-    Compress.cond(validIOSlots, io.in.fromIBuffer(_).bits.whichFu === fuType)
+  def connectRS(fuType: FuType.Type) = {
+    Compress.Valid(validIOSlots, io.in.fromIBuffer(_).bits.whichFu === fuType)
+  }
 
-  io.out.toAluRS <> connectRS(HFuType.alu)
-  io.out.toMduRs <> connectRS(HFuType.mdu)
-  io.out.toLsuRs <> connectRS(HFuType.lsu)
+  io.out.toAluRS <> connectRS(FuType.alu)
+  io.out.toMduRs <> connectRS(FuType.mdu)
+  io.out.toLsuRs <> connectRS(FuType.lsu)
 
   val toRobValidIO = validIOSlots.zip(fromIBuffer).map {
     case (validIOSlot, ibuffer) =>
@@ -135,5 +146,5 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
       toRob.bits.destRegMeta.currADest := ibuffer.aRegsIdx.dest
       toRob
   }
-  io.out.toRob <> Compress(toRobValidIO)
+  io.out.toRob <> Compress.Valid(toRobValidIO)
 }

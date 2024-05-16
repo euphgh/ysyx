@@ -14,7 +14,7 @@ class BtbWIO(implicit p: Parameters) extends CoreBundle {
   val tagIdx   = UInt((32 - log2Ceil(IcachLineBytes)).W)
   val instrOff = Vec(4, UInt(instrOffWidth.W))
   val brType   = Vec(fetchNum, BranchType())
-  val instr    = Vec(fetchNum, UWord)
+  val instr    = Vec(fetchNum, UInt32)
 }
 
 /**
@@ -50,7 +50,7 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
     }
 
     // must in this stage, becasue it use first valid btbType
-    val rasPush = Valid(UWord)
+    val rasPush = Valid(UInt32)
     val rasPop  = Output(Bool())
     val bCacheW = Valid(new BCacheWIO)
   })
@@ -112,7 +112,7 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
     //TODO: fix Difftest
     // val frontPreDiff = Module(new DifftestFrontPred)
     // frontPreDiff.io.clock := clock
-    // asg(frontPreDiff.io.debugPC, VecInit(io.out.bits.basicInstInfo.map(_.pcVal)))
+    // asg(frontPreDiff.io.debugHW, VecInit(io.out.bits.basicInstInfo.map(_.pcVal)))
     // asg(frontPreDiff.io.predType, VecInit(bpuout.map(_.btbType.asUInt)))
     // asg(frontPreDiff.io.realType, VecInit(io.out.bits.realBrType.map(_.asUInt)))
     // asg(frontPreDiff.io.en, io.out.fire)
@@ -127,9 +127,9 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
   bpuWQ.io.enq.bits.instr    := VecInit(outBits.basicInstInfo.map(_.instr))
   io.btbDeq <> bpuWQ.io.deq
 
-  val savedPreDst = Reg(UWord)
-  val redirSet    = io.out.bits.redirect.flush
-  val redirDst    = io.out.bits.redirect.target
+  val savedPreDst = Reg(UInt32)
+  val redirSet    = io.out.bits.redirect.valid
+  val redirDst    = io.out.bits.redirect.bits.target
   val alignPC     = getAlignPC(inBits.pcVal)
   redirSet            := false.B
   redirDst            := DontCare

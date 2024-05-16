@@ -31,7 +31,7 @@ import org.chipsalliance.cde.config._
 class PreIf(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
     val in = new Bundle {
-      val redirect = Flipped(new FrontRedirctIO)
+      val redirect = FrontRedirct.input()
       val fromIf1  = Flipped(new IfStage1ToPreIf)
     }
     val out = new PreIfOutIO
@@ -39,9 +39,9 @@ class PreIf(implicit p: Parameters) extends CoreModule {
   io.out.npc := MuxCase(
     getAlignPC(io.in.fromIf1.pcVal),
     Seq(
-      io.in.redirect.flush -> io.in.redirect.target,
+      io.in.redirect.valid -> io.in.redirect.bits.target,
       io.in.fromIf1.predictRes.valid -> io.in.fromIf1.predictRes.bits
     )
   )
-  io.out.flush := io.in.redirect.flush
+  io.out.flush := io.in.redirect.valid
 }

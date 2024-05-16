@@ -8,7 +8,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 
 class FreeList(implicit p: Parameters) extends CoreModule {
-  val gen     = PRegIdx
+  val gen     = PRegIdx()
   val ptrType = UInt(12.W)
   val io = IO(new Bundle {
     val push = Vec(retireNum, Flipped(Decoupled(gen)))
