@@ -8,5 +8,9 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 
 class TLB(implicit p: Parameters) extends CoreModule {
-  val search = IO(Vec(2, Flipped(new TLBSearchIO)))
+  val io = new TlbIO
+}
+
+object TLB {
+  def apply()(implicit p: Parameters) = (new TLB).io
 }

@@ -1,187 +1,164 @@
 package core.mmu
 
+import core._
+import utility._
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
-import core._
-import utility._
 
-trait HasTlbConst extends HasMyParams {
-  val Level = 3
-
-  val offLen         = 12
-  val ppnLen         = PAddrBits - offLen
-  val vpnnLen        = 9
-  val extendVpnnBits = if (HasHExtension) 2 else 0
-  val vpnLen         = VAddrBits - offLen // when opening H extention, vpnlen broaden two bits
-  val flagLen        = 8
-  val pteResLen      = XLEN - 44 - 2 - flagLen
-  val ppnHignLen     = 44 - ppnLen
-
-  val tlbcontiguous  = 8
-  val sectortlbwidth = log2Up(tlbcontiguous)
-  val sectorppnLen   = ppnLen - sectortlbwidth
-  val sectorvpnLen   = vpnLen - sectortlbwidth
-
-  val loadfiltersize     = 16
-  val storefiltersize    = 8
-  val prefetchfiltersize = 8
-
-  val sramSinglePort = true
-
-  val timeOutThreshold = 10000
-
-  def noS2xlate  = "b00".U
-  def allStage   = "b11".U
-  def onlyStage1 = "b01".U
-  def onlyStage2 = "b10".U
-
-  def get_pn(addr: UInt) = {
-    require(addr.getWidth > offLen)
-    addr(addr.getWidth - 1, offLen)
-  }
-  def get_off(addr: UInt) = {
-    require(addr.getWidth > offLen)
-    addr(offLen - 1, 0)
-  }
-
-  def get_set_idx(vpn: UInt, nSets: Int): UInt = {
-    require(nSets >= 1)
-    vpn(log2Up(nSets) - 1, 0)
-  }
-
-  def drop_set_idx(vpn: UInt, nSets: Int): UInt = {
-    require(nSets >= 1)
-    require(vpn.getWidth > log2Ceil(nSets))
-    vpn(vpn.getWidth - 1, log2Ceil(nSets))
-  }
-
-  def drop_set_equal(vpn1: UInt, vpn2: UInt, nSets: Int): Bool = {
-    require(nSets >= 1)
-    require(vpn1.getWidth == vpn2.getWidth)
-    if (vpn1.getWidth <= log2Ceil(nSets)) {
-      true.B
-    } else {
-      drop_set_idx(vpn1, nSets) === drop_set_idx(vpn2, nSets)
-    }
-  }
-
-  def replaceWrapper(v: UInt, lruIdx: UInt): UInt = {
-    val width    = v.getWidth
-    val emptyIdx = ParallelPriorityMux((0 until width).map(i => (!v(i), i.U(log2Up(width).W))))
-    val full     = Cat(v).andR
-    Mux(full, lruIdx, emptyIdx)
-  }
-
-  def replaceWrapper(v: Seq[Bool], lruIdx: UInt): UInt = {
-    replaceWrapper(VecInit(v).asUInt, lruIdx)
-  }
-}
-
-abstract class TlbBundle(implicit p: Parameters) extends CoreBundle with HasTlbConst
-
-abstract class TlbModule(implicit p: Parameters) extends CoreModule with HasTlbConst
-
-class TLBSearchRes(implicit p: Parameters) extends CoreBundle {
-  val pTag   = UInt(tagWidth.W)
-  val hit    = Bool()
-  val dirty  = Bool() // dirty bits
-  val refill = Bool() // no match by addr and asid
-}
-
-class TLBSearchIO(implicit p: Parameters) extends CoreBundle {
-  val req = Valid(UWord)
-  val res = Flipped(Valid(new TLBSearchRes))
-}
-
-class TlbReq(implicit p: Parameters) extends TlbBundle {
-  val vaddr     = Output(UInt(VAddrBits.W))
-  val cmd       = Output(TlbCmd())
-  val hyperinst = Output(Bool())
-  val hlvx      = Output(Bool())
-  val size      = Output(UInt(log2Ceil(log2Ceil(XLEN / 8) + 1).W))
-  val kill      = Output(Bool()) // Use for blocked tlb that need sync with other module like icache
-  val memidx    = Output(UInt(6.W))
-  // do not translate, but still do pmp/pma check
-  val no_translate = Output(Bool())
-  val debug = new Bundle {
-    val pc           = Output(UInt(XLEN.W))
-    val robIdx       = Output(UInt(5.W))
-    val isFirstIssue = Output(Bool())
-  }
-
-  // Maybe Block req needs a kill: for itlb, itlb and icache may not sync, itlb should wait icache to go ahead
-  override def toPrintable: Printable = {
-    p"vaddr:0x${Hexadecimal(vaddr)} cmd:${cmd} kill:${kill} pc:0x${Hexadecimal(debug.pc)} robIdx:${debug.robIdx}"
-  }
+class TlbReq(implicit p: Parameters) extends MMUBundle {
+  val vaddr   = UInt(VAddrBits.W)
+  val cmd     = TlbCmd()
+  val size    = MemDataSize()
+  val debugHW = DebugHW()
 }
 
 object TlbReq {
-  def apply(pc: UInt)(implicit p: Parameters) = {
+  def apply()(implicit p: Parameters) = new TlbReq()
+  def fetch(pc: UInt)(implicit p: Parameters): TlbReq = {
     val req = new TlbReq
-    req.size               := 3.U
-    req.vaddr              := pc
-    req.cmd                := TlbCmd.exec
-    req.memidx             := DontCare
-    req.no_translate       := false.B
-    req.hlvx               := false.B
-    req.hyperinst          := false.B
-    req.kill               := DontCare
-    req.debug.pc           := pc
-    req.debug.isFirstIssue := DontCare
-    req.debug.robIdx       := DontCare
+    req.size  := MemDataSize.uint32
+    req.vaddr := pc
+    req.cmd   := TlbCmd.exec
+    req.debugHW.set(DebugHW.dontCare())
+    req.debugHW.set(pc)
+    req
+  }
+  def store(
+    pc:      UInt,
+    fuOp:    UInt,
+    debugHW: DebugHW
+  )(
+    implicit p: Parameters
+  ): TlbReq = {
+    val req = new TlbReq
+    req.size  := MemType.size(fuOp)
+    req.vaddr := pc
+    req.cmd   := TlbCmd.write
+    req.debugHW.set(debugHW)
+    req
+  }
+  def load(
+    pc:      UInt,
+    fuOp:    UInt,
+    debugHW: DebugHW
+  )(
+    implicit p: Parameters
+  ): TlbReq = {
+    val req = new TlbReq
+    req.size  := MemType.size(fuOp)
+    req.vaddr := pc
+    req.cmd   := TlbCmd.read
+    req.debugHW.set(debugHW)
     req
   }
 }
 
-object TlbCmd {
-  def read  = "b00".U
-  def write = "b01".U
-  def exec  = "b10".U
+class PtePermBundle(implicit p: Parameters) extends MMUBundle {
+  val d = Bool()
+  val a = Bool()
+  val g = Bool()
+  val u = Bool()
+  val x = Bool()
+  val w = Bool()
+  val r = Bool()
 
-  def atom_read  = "b100".U // lr
-  def atom_write = "b101".U // sc / amo
+  override def toPrintable: Printable =
+    p"d:${d} a:${a} g:${g} u:${u} x:${x} w:${w} r:${r}"
 
-  def apply() = UInt(3.W)
-  def isRead(a:  UInt) = a(1, 0) === read
-  def isWrite(a: UInt) = a(1, 0) === write
-  def isExec(a:  UInt) = a(1, 0) === exec
-
-  def isAtom(a: UInt) = a(2)
-  def isAmo(a:  UInt) = a === atom_write // NOTE: sc mixed
 }
-class TlbExceptionBundle(implicit p: Parameters) extends TlbBundle {
+
+class TlbPermBundle(implicit p: Parameters) extends PtePermBundle {
+  val pf = Bool() //NOTE: if this is true, just raise pf
+  val af = Bool() //NOTE: if this is true, just raise af
+  // pagetable perm (software defined)
+
+  override def toPrintable: Printable =
+    p"pf:${pf} af:${af} d:${d} a:${a} g:${g} u:${u} x:${x} w:${w} r:${r} "
+
+}
+
+class TlbExceptionBundle(implicit p: Parameters) extends MMUBundle {
   val ld    = Output(Bool())
   val st    = Output(Bool())
   val instr = Output(Bool())
 }
 
-class TlbResp(nDups: Int = 1)(implicit p: Parameters) extends TlbBundle {
-  val paddr  = Vec(nDups, Output(UInt(PAddrBits.W)))
-  val gpaddr = Vec(nDups, Output(UInt(GPAddrBits.W)))
-  val miss   = Output(Bool())
-  val excp = Vec(
-    nDups,
-    new Bundle {
-      val gpf = new TlbExceptionBundle()
-      val pf  = new TlbExceptionBundle()
-      val af  = new TlbExceptionBundle()
-    }
-  )
-  val ptwBack = Output(Bool()) // when ptw back, wake up replay rs's state
-  val memidx  = Output(UInt(6.W))
+class TlbResp()(implicit p: Parameters) extends MMUBundle {
+  val paddr = Output(UInt(PAddrBits.W))
+  val miss  = Output(Bool())
+  val excp = Output(new Bundle {
+    val pf = new TlbExceptionBundle()
+    val af = new TlbExceptionBundle()
+  })
+  val debugHW = DebugHW()
+}
 
-  val debugBundle = new Bundle {
-    val robIdx       = Output(UInt(5.W))
-    val isFirstIssue = Output(Bool())
-  }
+class TlbRequestIO()(implicit p: Parameters) extends MMUBundle {
+  val req  = DecoupledIO(new TlbReq)
+  val resp = Flipped(Valid(new TlbResp()))
+}
+
+class PtwReq(implicit p: Parameters) extends MMUBundle {
+  val vpn = UInt(vpnLen.W)
   override def toPrintable: Printable = {
-    p"paddr:0x${Hexadecimal(paddr(0))} miss:${miss} excp.pf: ld:${excp(0).pf.ld} st:${excp(0).pf.st} instr:${excp(0).pf.instr} ptwBack:${ptwBack}"
+    p"vpn:0x${Hexadecimal(vpn)}"
   }
 }
 
-class TlbRequestIO(nRespDups: Int = 1)(implicit p: Parameters) extends TlbBundle {
-  val req      = DecoupledIO(new TlbReq)
-  val req_kill = Output(Bool())
-  val resp     = Flipped(DecoupledIO(new TlbResp(nRespDups)))
+class PtwResp(implicit p: Parameters) extends MMUBundle {
+  val valididx = Bool()
+  val pteidx   = Bool()
+  val pf       = Bool()
+  val af       = Bool()
+}
+
+class TlbPtwIO(implicit p: Parameters) extends MMUBundle {
+  val req  = Decoupled(new PtwReq)
+  val resp = Flipped(Decoupled(new PtwResp))
+
+  override def toPrintable: Printable = {
+    p"req(0):${req.valid} ${req.ready} ${req.bits} | resp:${resp.valid} ${resp.ready} ${resp.bits}"
+  }
+}
+
+class SfenceBundle(implicit p: Parameters) extends MMUBundle {
+  val valid = Bool()
+  val bits = new Bundle {
+    val rs1  = Bool()
+    val rs2  = Bool()
+    val addr = UInt(VAddrBits.W)
+    val id   = UInt(asidLen.W) // asid or vmid
+  }
+
+  override def toPrintable: Printable = {
+    p"valid:0x${Hexadecimal(valid)} rs1:${bits.rs1} rs2:${bits.rs2} addr:${Hexadecimal(bits.addr)}"
+  }
+}
+
+class MMUIOBaseBundle(implicit p: Parameters) extends MMUBundle {
+  val sfence = Input(new SfenceBundle)
+  val csr    = Input(new TlbCsrBundle)
+
+  def base_connect(sfence: SfenceBundle, csr: TlbCsrBundle): Unit = {
+    this.sfence <> sfence
+    this.csr <> csr
+  }
+
+  // overwrite satp. write satp will cause flushpipe but csr.priv won't
+  // satp will be dealyed several cycles from writing, but csr.priv won't
+  // so inside mmu, these two signals should be divided
+  def base_connect(sfence: SfenceBundle, csr: TlbCsrBundle, satp: TlbSatpBundle) = {
+    this.sfence <> sfence
+    this.csr <> csr
+    this.csr.satp := satp
+  }
+}
+
+class TlbReplaceIO(implicit p: Parameters) extends MMUBundle {}
+
+class TlbIO(nRespDups: Int = 1)(implicit p: Parameters) extends MMUIOBaseBundle {
+  val requestor = Flipped(new TlbRequestIO())
+  val ptw       = new TlbPtwIO()
+  val replace   = new TlbReplaceIO
 }
