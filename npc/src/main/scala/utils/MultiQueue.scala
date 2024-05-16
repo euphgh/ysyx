@@ -1,27 +1,26 @@
 package utils
 
+import core._
+import utility._
 import chisel3._
 import chisel3.util._
-import core.ALUOpType
 import scala.collection.SeqMap
-import dataclass.data
-import utility.ParallelPriorityMux
 
-object CompressByValid {
+package object Compress {
 
-  case class Inner(popCounts: Seq[UInt], selectors: Seq[Seq[Bool]])
+  private case class InnerInfo(popCounts: Seq[UInt], selectors: Seq[Seq[Bool]])
 
-  def prepare(valids: Seq[Bool]) = {
+  private def prepare(valids: Seq[Bool]) = {
     val popCounts = valids.indices.map(i => PopCount(valids.take(i + 1)))
     val selectors = valids.indices.map { idx =>
       val equals = (idx until valids.length).map(j => popCounts(j) === (idx + 1).U)
       equals.indices.map(i => equals(i) && !(if (i == 0) false.B else equals(i - 1)))
     }
-    Inner(popCounts, selectors)
+    InnerInfo(popCounts, selectors)
   }
 
-  def apply[T <: Data](in: Vec[ValidIO[T]]): Vec[ValidIO[T]] = {
-    val Inner(popCounts, selectors) = prepare(in.map(_.valid))
+  private def selectValidIO[T <: Data](info: InnerInfo, in: Seq[ValidIO[T]]) = {
+    val InnerInfo(popCounts, selectors) = info
 
     val out = Wire(Vec(in.length, in.head.cloneType))
     in.indices.map { idx =>
@@ -30,9 +29,8 @@ object CompressByValid {
     }
     out
   }
-
-  def apply[T <: Data](in: Seq[DecoupledIO[T]]): Vec[DecoupledIO[T]] = {
-    val Inner(popCounts, selectors) = prepare(in.map(_.valid))
+  private def selectDecoupledIO[T <: Data](info: InnerInfo, in: Seq[DecoupledIO[T]]) = {
+    val InnerInfo(popCounts, selectors) = info
 
     val out = Wire(Vec(in.length, in.head.cloneType))
     in.indices.map { idx =>
@@ -43,133 +41,48 @@ object CompressByValid {
     out
   }
 
-  class CompressValidDut(width: Int) extends Module {
-    val valid = IO(new Bundle {
-      val in  = Vec(width, Flipped(Valid(UInt(32.W))))
-      val out = Vec(width, Valid(UInt(32.W)))
-    })
-    valid.out <> apply(valid.in)
-  }
+  object Valid {
 
-  class CompressDecoupledDut(width: Int) extends Module {
-    val decoupled = IO(new Bundle {
-      val in  = Vec(width, Flipped(Decoupled(UInt(32.W))))
-      val out = Vec(width, Decoupled(UInt(32.W)))
-    })
-    decoupled.out <> apply(decoupled.in)
-  }
-}
-
-/**
-  * all the port should at least be fmt "1..0.."
-  * all the gen in Q is "valid"
-  *
-  * push(x).valid can be different according to input,
-  * but push(x).ready from MultiQueue must be same.
-  * MultiQueue will accept them at same cycle when it has enough space(enqNum)
-  *   or give x ready when it has x blank space(x<=enqNum)
-  *
-  * pop(x).valid also can be different according to
-  * MultiQueue has enough data or not.
-  * but pop(x).ready must be same,
-  * only when (0 to deqNum).foldLeft(true.B)(pop(_).fire && _) === true.B
-  * MultiQueue update it pop
-  *   not need to be same,but should be "1...0..." form
-  *
-  * MultiQueue can be used in InstBuffer, FreeList(a little weird), ROB ,STQ
-  *
-  * @param enqNum enqueue number in one cycle
-  * @param deqNum enqueue number in one cycle
-  * @param gen data type
-  * @param size Queue size
-  * @param allIn True:   if MultiQueue dont't have space accepts all enq elements, it will not assert any enq.ready
-  *              false:  it will assert some enq.ready
-  */
-
-class MultiQueue[T <: Data](
-  enqNum: Int,
-  deqNum: Int,
-  gen:    T,
-  size:   Int     = 32,
-  isFL:   Boolean = false)
-    extends Module {
-  require(isPow2(size))
-  val counterWidth = log2Ceil(size)
-  val ptrWidth     = counterWidth + 1
-
-  val io = IO(new Bundle {
-    val push    = Vec(enqNum, Flipped(Decoupled(gen)))
-    val pop     = Vec(deqNum, Decoupled(gen))
-    val flush   = Input(Bool())
-    val tailPtr = Output(UInt(ptrWidth.W))
-    val headPtr = Output(UInt(ptrWidth.W))
-  })
-
-  val initZero = Seq.fill(size)(0.U.asTypeOf(gen))
-  val initFl   = (0 until size).map(i => (i + 32).U.asTypeOf(gen))
-
-  def ramInit(index: Int): T = 0.U.asTypeOf(gen)
-  private val ringBuffer = RegInit(VecInit.tabulate(size)(ramInit(_)))
-
-  def headInit: UInt = {
-    val normal   = 0.U
-    val freeList = size.U
-    normal
-  }
-
-  val headPtr    = RegInit(UInt(ptrWidth.W), if (isFL) size.U else 0.U)
-  val tailPtr    = RegInit(UInt(ptrWidth.W), 0.U)
-  val deqFireNum = PopCount(io.pop.map(_.fire))
-  val enqFireNum = PopCount(io.push.map(_.fire))
-  def overflow(add:  UInt) = (headPtr - tailPtr + add - deqFireNum)(counterWidth) //must look ahead a cycle
-  def underflow(sub: UInt) = (headPtr - tailPtr - sub)(counterWidth) //only considerate current
-  val nextBasicNum = RegNext(Mux(io.flush, 0.U(ptrWidth.W), (headPtr + enqFireNum - tailPtr - deqFireNum)))
-  def overflowR(add:  UInt) = (nextBasicNum + add)(counterWidth) //must look ahead a cycle
-  def underflowR(sub: UInt) = (nextBasicNum - sub)(counterWidth) //only considerate current
-  val pushIndex = RegNext(VecInit((0 until enqNum).map(i => {
-    val startLine = Mux(io.flush, 0.U(counterWidth.W), headPtr + enqFireNum)
-    (startLine + i.U)(counterWidth - 1, 0)
-  })))
-  val popIndex = RegNext(VecInit((0 until deqNum).map(i => {
-    val startLine = Mux(io.flush, 0.U(counterWidth.W), tailPtr + deqFireNum)
-    (startLine + i.U)(counterWidth - 1, 0)
-  })))
-  val counterMatch = headPtr(counterWidth - 1, 0) === tailPtr(counterWidth - 1, 0)
-  val signMatch    = headPtr(ptrWidth - 1) === tailPtr(ptrWidth - 1)
-  val empty        = counterMatch && signMatch
-  val full         = counterMatch && !signMatch
-  io.headPtr := headPtr
-  io.tailPtr := tailPtr
-
-  def pushReady(index: Int): Bool = {
-    val reductSpace = !(overflowR((enqNum - 1).U))
-    val enoughSpace = !(overflowR(index.U))
-    reductSpace
-  }
-
-  (0 until enqNum).foreach(i => io.push(i).ready := pushReady(i))
-
-  List.tabulate(enqNum)(i => {
-    when(io.push(i).fire) {
-      ringBuffer(pushIndex(i)) := io.push(i).bits
+    def apply[T <: Data](in: Seq[ValidIO[T]]): Vec[ValidIO[T]] = {
+      val infoPack = prepare(in.map(_.valid))
+      selectValidIO(infoPack, in)
     }
-  })
-  headPtr := headPtr + enqFireNum
 
-  //pop
-  (0 until deqNum).foreach(i => (io.pop(i).valid := !underflowR((i + 1).U)))
-  tailPtr := tailPtr + deqFireNum
-  (0 until deqNum).foreach(i => {
-    io.pop(i).bits := ringBuffer(popIndex(i))
-  })
+    def apply[T <: Data](in: Seq[ValidIO[T]], cond: Int => Bool): Vec[ValidIO[T]] = {
+      val infoPack = prepare(in.zipWithIndex.map { case (port, i) => port.valid && cond(i) })
+      selectValidIO(infoPack, in)
+    }
 
-  when(io.flush) {
-    headPtr := 0.U
-    tailPtr := 0.U
+    class Dut(width: Int) extends Module {
+      val valid = IO(new Bundle {
+        val in  = Vec(width, Flipped(ValidIO(UInt(32.W))))
+        val out = Vec(width, ValidIO(UInt(32.W)))
+      })
+      valid.out <> apply(valid.in)
+    }
+  }
+  object Decoupled {
+
+    def apply[T <: Data](in: Seq[DecoupledIO[T]]): Vec[DecoupledIO[T]] = {
+      val infoPack = prepare(in.map(_.valid))
+      selectDecoupledIO(infoPack, in)
+    }
+
+    def apply[T <: Data](in: Seq[DecoupledIO[T]], cond: Int => Bool): Vec[DecoupledIO[T]] = {
+      val infoPack = prepare(in.zipWithIndex.map { case (port, i) => port.valid && cond(i) })
+      selectDecoupledIO(infoPack, in)
+    }
+
+    class Dut(width: Int) extends Module {
+      val foo = UInt(32.W)
+      val decoupled = IO(new Bundle {
+        val in  = Vec(width, Flipped(DecoupledIO(UInt(32.W))))
+        val out = Vec(width, DecoupledIO(UInt(32.W)))
+      })
+      decoupled.out <> apply(decoupled.in)
+    }
   }
 }
-
-import utility._
 
 /**
   * inputs interface:

@@ -1,6 +1,8 @@
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
+import core.mmu.TlbExceptionBundle
+import core.mmu.PMPRespIO
 
 package object core {
   class RInstr(implicit p: Parameters) extends CoreBundle {
@@ -19,35 +21,6 @@ package object core {
       require(uint.getWidth == 32)
       uint.asTypeOf(new RInstr)
     }
-  }
-
-  class VAddr(implicit p: Parameters) extends CoreBundle {
-    val inner = UInt(VAddrBits.W)
-  }
-
-  implicit def RInstr2UInt(instr: RInstr): UInt = instr.asUInt
-  implicit def UInt2RInstr(instr: UInt)(implicit p: Parameters): RInstr = instr.asTypeOf(new RInstr)
-  implicit def VAddr2UInt(vaddr:  VAddr): UInt = vaddr.asUInt
-  implicit def UInt2VAddr(vaddr:  UInt)(implicit p: Parameters): VAddr = vaddr.asTypeOf(new VAddr)
-
-  object SrcType {
-    def reg = "b00".U
-    def pc  = "b01".U
-    def imm = "b01".U
-    def fp  = "b10".U
-
-    def DC = imm // Don't Care
-    def X  = BitPat("b??")
-
-    def isReg(srcType:     UInt) = srcType === reg
-    def isPc(srcType:      UInt) = srcType === pc
-    def isImm(srcType:     UInt) = srcType === imm
-    def isFp(srcType:      UInt) = srcType(1)
-    def isPcOrImm(srcType: UInt) = srcType(0)
-    def isRegOrFp(srcType: UInt) = !srcType(0)
-    def regIsFp(srcType:   UInt) = srcType(1)
-
-    def apply() = UInt(2.W)
   }
 
   object SrcState {
@@ -148,9 +121,41 @@ package object core {
     // def isException(level: UInt) = level(1) && level(0)
   }
 
+  class ExceptionVec extends Bundle {
+    val vec = Vec(ExceptionVec.ExceptionVecSize, Bool())
+    def merge(that: ExceptionVec) = {
+      vec.zipWithIndex.foreach {
+        case (bit, index) =>
+          bit := bit || that(index)
+      }
+      this
+    }
+    def pageFault(that: TlbExceptionBundle) {
+      this.append(that.instr, ExceptionNO.instrPageFault)
+      this.append(that.ld, ExceptionNO.loadPageFault)
+      this.append(that.st, ExceptionNO.storePageFault)
+    }
+    def accessFault(that: TlbExceptionBundle) {
+      this.append(that.instr, ExceptionNO.instrAccessFault)
+      this.append(that.ld, ExceptionNO.loadAccessFault)
+      this.append(that.st, ExceptionNO.storeAccessFault)
+    }
+    def accessFault(that: PMPRespIO) {
+      this.append(that.instr, ExceptionNO.instrAccessFault)
+      this.append(that.ld, ExceptionNO.loadAccessFault)
+      this.append(that.st, ExceptionNO.storeAccessFault)
+    }
+    def append(cond: Bool, number: Int) = {
+      vec(number) := vec(number) | cond
+      this
+    }
+    def apply(index: Int) = vec(index)
+    def asBools        = vec.toSeq
+    def hasException() = vec.asUInt.orR
+  }
   object ExceptionVec {
     val ExceptionVecSize = 24
-    def apply()          = Vec(ExceptionVecSize, Bool())
+    def apply()          = new ExceptionVec()
   }
 
   object PMAMode {
@@ -584,9 +589,9 @@ package object core {
     )
     def partialSelect(vec: Vec[Bool], select: Seq[Int]): Vec[Bool] = {
       val new_vec = Wire(ExceptionVec())
-      new_vec.foreach(_ := false.B)
+      new_vec.asBools.foreach(_ := false.B)
       select.foreach(i => new_vec(i) := vec(i))
-      new_vec
+      new_vec.asBools
     }
     def selectFrontend(vec: Vec[Bool]): Vec[Bool] = partialSelect(vec, frontendSet)
     def selectAll(vec:      Vec[Bool]): Vec[Bool] = partialSelect(vec, ExceptionNO.all)

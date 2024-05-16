@@ -5,21 +5,18 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import core.cache._
 import macros.decode._
+import utility._
 
 /*==================== BASIC BUNDLE ====================*/
 class BasicExInfoBundle(implicit p: Parameters) extends CoreBundle {
-  val pc   = Output(UWord)
+  val pc   = Output(UInt(VAddrBits.W))
   val isBd = Output(Bool())
 }
-class DetectExInfoBundle(implicit p: Parameters) extends CoreBundle {
-  val happen  = Output(Bool())
-  val excCode = Output(ExcCode())
-  val refill  = Output(Bool())
-}
+
 class ExCommitBundle(implicit p: Parameters) extends CoreBundle {
-  val basic    = new BasicExInfoBundle
-  val detect   = new DetectExInfoBundle
-  val badVaddr = Output(UWord)
+  val basic    = new BasicExInfoBundle()
+  val excptVec = ExceptionVec()
+  val badVaddr = Output(UInt(VAddrBits.W))
 }
 
 //bpu info for per inst
@@ -35,37 +32,86 @@ class BasicInstInfoBundle(implicit p: Parameters) extends CoreBundle {
   val pcVal = Output(UInt(VAddrBits.W))
 }
 
-/**
-  * aluType ->  [Rs][RO][Exe]  mAlu sAlu
-  * memType ->  [Rs][Ro][Mem1][Mem2] lsu
-  * mduType ->  [Rs][Ro][Exe]mdu
-  * specialType -> ROB
-  */
-@DecodeMacro
-class DecodeInstInfoBundle extends DCBundle {
-  val aluType = AluType()
-  val memType = MemType()
-  val mduType = MduType()
+class WPrfBundle(implicit p: Parameters) extends CoreBundle {
+  val pDest  = PRegIdx()
+  val result = UWord()
 }
 
-//no need a wen,pDest===0 means !wen
-class WPrfBundle(implicit p: Parameters) extends CoreBundle {
-  val pDest  = PRegIdx
-  val result = UWord
-  val wmask  = UInt(4.W)
+class DebugHW(implicit p: Parameters) extends CoreBundle {
+  val inner = if (EnableDebugHW) Some(new DebugHW.Inner) else None
+
+  def fromIBuffer(that: InstBufferOutIO) = {
+    if (inner.isDefined) {
+      inner.get.pc    := that.basicInstInfo.pcVal
+      inner.get.instr := that.basicInstInfo.instr
+    }
+  }
+
+  def set(that: DebugHW): DebugHW = {
+    if (inner.isDefined && that.inner.isDefined) {
+      inner.get := that.inner.get
+    }
+    this
+  }
+
+  def set(that: DebugHW.Inner): DebugHW = {
+    if (inner.isDefined) {
+      inner.get := that
+    }
+    this
+  }
+
+  def set(name: String, value: Data): DebugHW = {
+    if (inner.isDefined) {
+      inner.get.elements(name) := value
+    }
+    this
+  }
+
+  def set(elements: Map[String, Data]): DebugHW = {
+    elements.foreach {
+      case (name, data) =>
+        set(name, data)
+    }
+    this
+  }
+
+  def set(pc: UInt = DontCare.asUInt, instr: UInt = DontCare.asUInt)(implicit p: Parameters): DebugHW = {
+    set("pc", pc)
+    set("instr", instr)
+    this
+  }
+}
+
+object DebugHW {
+  class Inner(implicit p: Parameters) extends CoreBundle {
+    val pc    = UInt(VAddrBits.W)
+    val instr = UInt(instrWidth.W)
+  }
+
+  def apply()(implicit p: Parameters) = new DebugHW
+
+  def apply(pc: UInt = 0.U, instr: UInt = 0.U)(implicit p: Parameters) = Wire(new DebugHW).set(pc, instr)
+
+  def apply(elements: Map[String, Data])(implicit p: Parameters) = Wire(new DebugHW).set(elements)
+
+  def apply(that: Inner)(implicit p: Parameters): DebugHW = Wire(DebugHW()).set(that)
+
+  def dontCare()(implicit p: Parameters) = Wire(DebugHW()).set(DontCare.asTypeOf(new Inner))
+
 }
 
 class WbRobBundle(implicit p: Parameters) extends CoreBundle {
-  val robIndex     = Output(UInt(robIndexWidth.W))
-  val exDetect     = new DetectExInfoBundle
+  val robIdx       = Output(UInt(robIndexWidth.W))
+  val excptVec     = ExceptionVec()
   val isMispredict = Output(Bool())
-  val debugPC      = if (EnableHardDebug) Some(UWord) else None
+  val debugHW      = DebugHW()
 }
 
 /*==================== 流水级OUT接口，不带valid-rdy ====================*/
 class InstARegsIdxBundle(implicit p: Parameters) extends CoreBundle {
-  val srcs = Vec(srcDataNum, ARegIdx)
-  val dest = ARegIdx
+  val srcs = Vec(srcRegNum, ARegIdx())
+  val dest = ARegIdx()
 }
 class InstBufferEntry(implicit p: Parameters) extends CoreBundle {
   val predictResult = new PredictResultBundle
@@ -74,31 +120,63 @@ class InstBufferEntry(implicit p: Parameters) extends CoreBundle {
   val exception     = FrontExcCode()
 }
 class InstBufferOutIO(implicit p: Parameters) extends InstBufferEntry {
-  val whichFu  = HFuType()
+  val whichFu  = FuType()
   val aRegsIdx = new InstARegsIdxBundle
 }
 
 class SrcRegMeta(implicit p: Parameters) extends CoreBundle {
-  val pIdx  = Output(PRegIdx)
-  val inPrf = Output(Bool())
+  val pIdx  = PRegIdx()
+  val inPrf = Bool()
 }
 
 //rsBasicEntry < rsOutIO(each rs may has extra)
 class RsBasicEntry(implicit p: Parameters) extends CoreBundle {
-  val exDetect     = new DetectExInfoBundle
-  val destAregAddr = Output(ARegIdx)
-  val destPregAddr = Output(UInt(pRegAddrWidth.W))
+  val excptVec     = ExceptionVec()
+  val destAregAddr = ARegIdx()
+  val destPregAddr = PRegIdx()
 
-  val robIndex = Output(ROBIdx)
-  val debugPC  = if (EnableHardDebug) Some(UWord) else None
+  val robIdx  = RobPtr()
+  val debugHW = DebugHW()
 
-  val pSrcs     = Vec(srcDataNum, Output(PRegIdx))
-  val prevPDest = Output(PRegIdx)
-  val sratInPrf = Vec(srcDataNum, Output(Bool()))
-  val wbInPrf   = Vec(srcDataNum, Output(Bool()))
-  val grpInPrf  = Vec(srcDataNum, Output(Bool()))
+  val pSrcs     = Vec(srcRegNum, Output(PRegIdx()))
+  val prevPDest = PRegIdx()
+  val sratInPrf = Vec(srcRegNum, Bool())
+  val wbInPrf   = Vec(srcRegNum, Bool())
+  val grpInPrf  = Vec(srcRegNum, Bool())
 
-  val wbInfo = Vec(wBNum, Output(PRegIdx))
+  val wbInfo = Vec(wBNum, PRegIdx())
+}
+
+class RobPtr(implicit p: Parameters)
+    extends CircularQueuePtr[RobPtr](p => (new CoreDelegate()(p) {}).robNum)
+    with HasCircularQueuePtrHelper
+
+object RobPtr {
+  def apply()(implicit p: Parameters) = new RobPtr
+  def apply(f: Bool, v: UInt)(implicit p: Parameters): RobPtr = {
+    val ptr = Wire(RobPtr())
+    ptr.flag  := f
+    ptr.value := v
+    ptr
+  }
+}
+
+@DecodeMacro
+class DecodeInstInfoBundle extends DCBundle {
+  val src1From = Src1From()
+  val src2From = Src2From()
+  val aluType  = AluType()
+  val memType  = MemType()
+  val mduType  = MduType()
+  val fuType   = FuType()
+}
+
+class CtrlFlow(implicit p: Parameters) extends CoreBundle {
+  val src1From = Src1From()
+  val src2From = Src2From()
+  val src3From = Src3From()
+  val fuOp     = FuOpType()
+  val fuType   = FuType()
 }
 
 /**
@@ -115,36 +193,83 @@ class RsBasicEntry(implicit p: Parameters) extends CoreBundle {
   *   notice that for I-inst,it should take low16 bit of low26 as its src2
   */
 class MicroOp(implicit p: Parameters) extends CtrlFlow {
-  val currPDest = Output(PRegIdx)
-  val prevPDest = Output(PRegIdx)
+  val currPDest = PRegIdx()
+  val prevPDest = PRegIdx()
+  val currADest = ARegIdx()
+  val excptVec  = ExceptionVec()
 
-  val robIndex = Output(ROBIdx)
-  // val debugPC  = if (debug) Some(UWord) else None
+  val robIdx = RobPtr()
+  val pc     = UInt(VAddrBits.W)
 
-  val pSrcs = Vec(srcDataNum, new SrcRegMeta)
+  val pRegsMeta = Vec(srcRegNum, new SrcRegMeta)
+  val imm       = UInt(20.W)
+  val debugHW   = DebugHW()
 }
 
-class RsRealOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundle {
-  // val origin    = new RsOutIO
-  val inPrf     = Output(Vec(srcDataNum, Bool()))
-  val mayNeedBp = Output(Vec(srcDataNum, Bool()))
+class RsRealOutIO()(implicit p: Parameters) extends CoreBundle {
+  // val origin = new RsOutIO
+  val inPrf = Output(Vec(srcRegNum, Bool()))
 }
 
 class RobSavedUop(implicit p: Parameters) extends CoreBundle {
-  val prevPDest = PRegIdx // free when retire
-  val currPDest = PRegIdx // updata A-RAT when retire
-  val currADest = ARegIdx // updata A-RAT when retire
+  val prevPDest = PRegIdx() // free when retire
+  val currPDest = PRegIdx() // updata A-RAT when retire
+  val currADest = ARegIdx() // updata A-RAT when retire
   val isSingle  = Bool()
 }
 
 class DestRegMeta(implicit p: Parameters) extends CoreBundle {
-  val prevPDest = PRegIdx // free when retire
-  val currPDest = PRegIdx // updata A-RAT when retire
-  val currADest = ARegIdx // updata A-RAT when retire
+  val prevPDest = PRegIdx() // free when retire
+  val currPDest = PRegIdx() // updata A-RAT when retire
+  val currADest = ARegIdx() // updata A-RAT when retire
 }
 
 class DispatchToRobIO(implicit p: Parameters) extends CoreBundle {
   val destRegMeta = new DestRegMeta
+}
+
+class RATWriteBackIO(implicit p: Parameters) extends CoreBundle {
+  val aDest = ARegIdx()
+  val pDest = PRegIdx()
+}
+
+class FrontRedirct()(implicit p: Parameters) extends CoreBundle {
+  val target = Output(UInt(VAddrBits.W))
+}
+
+object FrontRedirct {
+  def apply(target: UInt)(implicit p: Parameters): FrontRedirct = {
+    val ret = Wire(new FrontRedirct)
+    ret.target := target
+    ret
+  }
+
+  def apply(valid: Bool, target: UInt)(implicit p: Parameters): ValidIO[FrontRedirct] = {
+    val ret = Valid(new FrontRedirct)
+    ret.valid := valid
+    ret.bits  := FrontRedirct(target)
+    ret
+  }
+
+  // Merge by priority, first parameters has highest priority
+  def merge(redirects: Valid[FrontRedirct]*)(implicit p: Parameters) = {
+    val valid  = ParallelOR(redirects.map(_.valid))
+    val target = ParallelPriorityMux(redirects.map(r => (r.valid, r.bits.target)))
+    apply(valid, target)
+  }
+
+  def output()(implicit p: Parameters) = Valid(new FrontRedirct)
+
+  def input()(implicit p: Parameters) = Flipped(Valid(new FrontRedirct))
+}
+
+class Redirect()(implicit p: Parameters) extends FrontRedirct {
+  val robPtr = new RobPtr
+}
+
+object Redirect {
+  def output()(implicit p: Parameters) = Valid(new Redirect)
+  def input()(implicit p:  Parameters) = Flipped(Valid(new Redirect))
 }
 
 /**
@@ -163,9 +288,9 @@ class DispatchToRobIO(implicit p: Parameters) extends CoreBundle {
   *   destPregAddr
   */
 class FunctionUnitOutIO(implicit p: Parameters) extends CoreBundle {
-  val wbRob        = new WbRobBundle
-  val wPrf         = new WPrfBundle
-  val destAregAddr = Output(ARegIdx)
+  val wbRob     = new WbRobBundle
+  val wPrf      = new WPrfBundle
+  val currADest = Output(ARegIdx())
 }
 
 /**
@@ -191,49 +316,51 @@ class FunctionUnitOutIO(implicit p: Parameters) extends CoreBundle {
   *   sa->src1
   *   {0.U(24.W),c0Addr}->src1
   */
-class ReadOpStageOutIO(kind: FuType.t)(implicit p: Parameters) extends CoreBundle {
+class ReadOpStageOutIO()(implicit p: Parameters) extends CoreBundle {
   val robIndex     = Output(UInt(robIndexWidth.W))
-  val exDetect     = new DetectExInfoBundle
+  val excptVec     = ExceptionVec()
   val destPregAddr = Output(UInt(pRegAddrWidth.W))
-  val destAregAddr = Output(ARegIdx)
-  val prevPDest    = Output(PRegIdx)
-  val prevData     = Output(UWord)
-  val debugPC      = if (EnableHardDebug) Some(Output(UWord)) else None
-
-  val uOp = new Bundle {
-    val brType  = if (kind == FuType.Alu) Some(Output(BranchType())) else None
-    val aluType = if (kind == FuType.Alu || kind == FuType.Alu) Some(Output(AluType())) else None
-    val memType = if (kind == FuType.Lsu) Some(Output(MemType())) else None
-    val mduType = if (kind == FuType.Mdu) Some(Output(MduType())) else None
-  }
-  val srcData = Vec(2, Output(UInt(dataWidth.W)))
-
-  val branch =
-    if (kind == FuType.Alu) Some(new Bundle {
-      val realTarget  = Output(UWord)
-      val realBtbType = Output(BtbType())
-      val predict     = new PredictResultBundle
-      val pcVal       = Output(UWord) //for update bpu
-    })
-    else None
-  val mem =
-    if (kind == FuType.Lsu) Some(Output(new Bundle {
-      // val cache    = Output(new CacheStage1In(true, DcachLineBytes)) //cache.rwReq.wWord is just src2?
-      val dirCattr = Output(CCAttr())
-      // val rLowAddr = Output(new CacheLowAddr(DcachLineBytes))
-      // val mipOut   = Valid(new IndexPredictor.MIPOutIO)
-      val isDir   = Output(Bool())
-      val pcVal   = Output(UWord)
-      val idxMiss = Output(Bool())
-
-      val carryOut  = Output(Bool())
-      val immOffset = Output(UInt(16.W))
-    }))
-    else None
+  val destAregAddr = Output(ARegIdx())
+  val prevPDest    = Output(PRegIdx())
+  val prevData     = Output(UInt32)
+  val debugHW      = DebugHW()
+  val srcData      = Vec(2, Output(UInt(XLEN.W)))
 }
 
 //just use to instantiate exeStageIO in alu/mdu
-class ExeStageIO(fuKind: FuType.t)(implicit p: Parameters) extends CoreBundle {
-  val in  = Flipped(Decoupled(new ReadOpStageOutIO(kind = fuKind)))
-  val out = Decoupled(new FunctionUnitOutIO)
+// class ExeStageIO(fuKind: FuType.t)(implicit p: Parameters) extends CoreBundle {
+//   val in  = Flipped(Decoupled(new ReadOpStageOutIO(kind = fuKind)))
+//   val out = Decoupled(new FunctionUnitOutIO)
+// }
+
+class SatpStruct(implicit p: Parameters) extends CoreBundle {
+  val mode = UInt(4.W)
+  val asid = UInt(16.W)
+  val ppn  = UInt(44.W)
+}
+
+class TlbSatpBundle(implicit p: Parameters) extends SatpStruct {
+  val changed = Bool()
+
+  def apply(satp_value: UInt): Unit = {
+    require(satp_value.getWidth == XLEN)
+    val sa = satp_value.asTypeOf(new SatpStruct)
+    mode    := sa.mode
+    asid    := sa.asid
+    ppn     := Cat(0.U((44 - PAddrBits).W), sa.ppn(PAddrBits - 1, 0)).asUInt
+    changed := DataChanged(sa.asid) // when ppn is changed, software need do the flush
+  }
+}
+
+class TlbCsrBundle(implicit p: Parameters) extends CoreBundle {
+  val satp = new TlbSatpBundle()
+  val priv = new Bundle {
+    val mxr = Bool()
+    val sum = Bool()
+  }
+
+  override def toPrintable: Printable = {
+    p"Satp mode:0x${Hexadecimal(satp.mode)} asid:0x${Hexadecimal(satp.asid)} ppn:0x${Hexadecimal(satp.ppn)} " +
+      p"Priv mxr:${priv.mxr} sum:${priv.sum}"
+  }
 }

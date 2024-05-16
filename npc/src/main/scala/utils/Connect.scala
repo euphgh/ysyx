@@ -85,3 +85,28 @@ object IbfConnectDper {
     })
   }
 }
+
+object Connect {
+  def byName(left: Bundle, right: Bundle) = {
+    left.elements.foreach {
+      case (lname, lele) =>
+        val rPair = right.elements.find { case (rname, _) => lname == rname }
+        if (rPair.isDefined)
+          lele := rPair.get._2
+    }
+  }
+
+  def decoupled[T <: Data, S <: Data](in: DecoupledIO[T], out: DecoupledIO[S]) = {
+    out.valid := in.valid
+    in.ready  := out.fire || !in.valid
+  }
+
+  def byType[T <: Bundle](left: T, right: T) = {
+    left.elements.foreach {
+      case (lname, lele) =>
+        val rPair = right.elements.find { case (rname, _) => lname == rname }
+        if (rPair.isDefined)
+          lele := rPair.get._2
+    }
+  }
+}

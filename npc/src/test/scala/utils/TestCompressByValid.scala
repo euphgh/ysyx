@@ -85,7 +85,7 @@ class TestCompressByValid extends AnyFlatSpec with ChiselScalatestTester with Te
   behavior.of("CompressByValid")
 
   it should "compress ValidIO" in {
-    test(new CompressByValid.CompressValidDut(16)).withAnnotations(treadle) { dut =>
+    test(new Compress.Valid.Dut(16)).withAnnotations(treadle) { dut =>
       val n = dut.valid.in.length
 
       for (round <- (0 until 256)) {
@@ -113,7 +113,7 @@ class TestCompressByValid extends AnyFlatSpec with ChiselScalatestTester with Te
     }
   }
   it should "compress DecoupledIO" in {
-    test(new CompressByValid.CompressDecoupledDut(16)).withAnnotations(treadle) { dut =>
+    test(new Compress.Decoupled.Dut(16)).withAnnotations(treadle) { dut =>
       val n = dut.decoupled.in.length
 
       for (round <- (0 until 256)) {

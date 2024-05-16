@@ -14,7 +14,7 @@ object LookupUIntDefault {
 }
 
 object LookupEnum {
-  def apply[S <: EnumType, T <: Data](key: S, mapping: Iterable[(S, T)]): T =
+  def apply[S <: EnumType, T <: Data](key: S)(mapping: Iterable[(S, T)]): T =
     Mux1H(mapping.map(p => (p._1 === key, p._2)))
 }
 

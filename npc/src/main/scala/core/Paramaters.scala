@@ -1,6 +1,7 @@
 package core
 
-import org.chipsalliance.cde.config.{Field, Parameters}
+import org.chipsalliance.cde.config._
+import utility._
 import chisel3._
 import chisel3.util._
 import core.cache.ICacheParams
@@ -62,42 +63,33 @@ trait HasMyParams {
   val XLEN  = cores.XLEN
   def xLen  = XLEN
 
-  val EnableDebug = p(DebugOptionsKey).EnableDebug
+  val EnableDebugHW = p(DebugOptionsKey).EnableDebug
   // configurable:
   val IcachLineBytes   = 64
-  val DcachLineBytes   = 64
   val basicBpuIdxWidth = 6
   val HasHExtension    = false
 
   val IcachRoads       = 2
-  val DcachRoads       = 2
   val retAddrStackSize = 8
   val storeQSize       = 8
   val tlbEntriesNum    = 4
   val enableBCache     = true
+
   // General Parameter for mycpu
   val excCodeWidth = 5
   val PAddrBits    = 32
   val VAddrBits    = 39
-  val GPAddrBits   = 41
-  val tagWidth     = 20
+  val tagWidth     = VAddrBits - 12
   require(IcachLineBytes == 64 || IcachLineBytes == 32)
-  require(DcachLineBytes == 64 || DcachLineBytes == 32)
   val IcacheOffsetWidth = log2Ceil(IcachLineBytes)
-  val DcacheOffsetWidth = log2Ceil(DcachLineBytes)
-  val IcacheIndexWidth  = 12 - IcacheOffsetWidth
-  val DcacheIndexWidth  = 12 - DcacheOffsetWidth
   val instrWidth        = 32
-  val dataWidth         = 32
+  val dataWidth         = XLEN
   val immWidth          = 16
-  def getAddrIdxI(word: UInt) = word(IcacheIndexWidth + IcacheOffsetWidth - 1, IcacheOffsetWidth)
-  def getAddrIdxD(word: UInt) = word(DcacheIndexWidth + DcacheOffsetWidth - 1, DcacheOffsetWidth)
-  def getOffsetI(word:  UInt) = word(IcacheOffsetWidth - 1, 0)
-  def getOffsetD(word:  UInt) = word(DcacheOffsetWidth - 1, 0)
-  def isDataId(id:      UInt) = id(0)
-  def isInstrId(id:     UInt) = id(0) =/= false.B
-  def isDCacheId(id:    UInt) = id === 1.U
-  def isUartBufId(id:   UInt) = id === 3.U
+  def getOffsetI(word: UInt) = word(IcacheOffsetWidth - 1, 0)
+  def isDataId(id:     UInt) = id(0)
+  def isInstrId(id:    UInt) = id(0) =/= false.B
+  def isDCacheId(id:   UInt) = id === 1.U
+  def isUartBufId(id:  UInt) = id === 3.U
   val instrOffLsb   = 2
   val instrOffMsb   = log2Ceil(IcachLineBytes) - 1
   val instrOffWidth = instrOffMsb - instrOffLsb + 1
@@ -118,7 +110,8 @@ trait HasMyParams {
   val renameNum  = 3
   val wBNum      = 3
   val issueNum   = 4 //should be 4
-  val srcDataNum = 2
+  val srcRegNum  = 2
+  val srcDataNum = 3
   val retireNum  = 3 //should be 4
 
   val aRegNum       = 32
@@ -129,14 +122,18 @@ trait HasMyParams {
   val robIndexWidth = log2Up(robNum)
   val freeListSize  = 32
 
-  def ARegIdx = UInt(aRegAddrWidth.W)
-  def PRegIdx = UInt(pRegAddrWidth.W)
-  def ROBIdx  = UInt(robIndexWidth.W)
+  object ARegIdx {
+    def apply() = UInt(aRegAddrWidth.W)
+  }
+  object PRegIdx {
+    def apply() = UInt(pRegAddrWidth.W)
+    def apply(data: Int) = data.U(pRegAddrWidth.W)
+  }
 
   val tlbIndexWidth = log2Ceil(tlbEntriesNum)
   def TLBIdx        = UInt(tlbIndexWidth.W)
 
-  val prfReadPortNum = srcDataNum * issueNum
+  val prfReadPortNum = srcRegNum * issueNum
 
   val aluFuNum     = 2
   val aluRsInPorts = 2
@@ -148,13 +145,23 @@ trait HasMyParams {
 
   val verilator = true
 
-  // val maOBpNum  = FuType.oBpNum(FuType.MainAlu)
-  // val saOBpNum  = FuType.oBpNum(FuType.SubAlu)
-  // val lsuOBpNum = FuType.oBpNum(FuType.Lsu)
-  // val mduOBpNum = FuType.oBpNum(FuType.Mdu)
+  def UInt8()  = UInt(8.W)
+  def UInt16() = UInt(16.W)
+  def UInt32() = UInt(32.W)
+  def UInt64() = UInt(64.W)
 
-  def UWord = UInt(32.W)
-  def UByte = UInt(8.W)
-  def UHalf = UInt(16.W)
-  def UDoub = UInt(64.W)
+  object UWord {
+    def apply() = UInt(XLEN.W)
+    def toUInt8s(uword: UInt) = {
+      require(uword.getWidth == XLEN)
+      (0 until XLEN / 8).map(i => uword((i + 1) * 8 - 1, i * 8))
+    }
+    def toVec(inUInt: UInt)(implicit p: Parameters): Vec[UInt] = {
+      val XLEN    = p(CoreParamsKey).XLEN
+      val inWidth = inUInt.getWidth
+      require(inWidth % XLEN == 0)
+      require(inWidth > XLEN)
+      VecInit((0 until inWidth / XLEN).map(i => inUInt((i + 1) * XLEN - 1, i * XLEN)))
+    }
+  }
 }

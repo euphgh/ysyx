@@ -5,33 +5,52 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import utility._
 import core._
+import core.mmu.MemDataSize
+import core.mmu.TlbCmd
+import chisel3.util.experimental.decode.decoder
+import chisel3.util.experimental.decode.TruthTable
 
 object NumSrcReg extends ChiselEnum {
   val zero, one, two = Value
+}
+
+object Src1From extends ChiselEnum {
+  val pc, reg, none = Value
+}
+
+object Src2From extends ChiselEnum {
+  val imm, reg, shamt, none = Value
+}
+
+object Src3From extends ChiselEnum {
+  val reg, none = Value
 }
 
 object HasDstReg extends ChiselEnum {
   val no, yes = Value
 }
 
-object HFuType extends ChiselEnum {
-  val alu, lsu, mdu = Value
+object FuType extends ChiselEnum {
+  val alu, lsu, mdu, bru = Value
 }
 
-abstract class FuOpType extends ChiselEnum {
-  def apply() = UInt(256.W).asTypeOf(Type())
-  def X       = BitPat("b???????")
+object FuOpType {
+  val opXLEN  = Seq(MemType, AluType, BranchType, MduType).map(_.getWidth).max
+  def apply() = UInt(opXLEN.W)
 }
 
-object MduType extends FuOpType {
+object MduType extends ChiselEnum {
   val mul, mulh, mulhu, mulhsu, mulw         = Value
   val div, divu, divw, divuw                 = Value
   val rem, remu, remw, remuw                 = Value
   val csrrw, csrrs, csrrc                    = Value
   val ecall, ebreak, wfi, sfence, sret, mret = Value
+  def isMul(fuOp: UInt) = MduType.safe(fuOp)._1.isOneOf(mul, mulh, mulhu, mulhsu, mulw)
+  def isDiv(fuOp: UInt) = MduType.safe(fuOp)._1.isOneOf(div, divu, divw, divuw, rem, remu, remw, remuw)
+  def isCSR(fuOp: UInt) = MduType.safe(fuOp)._2 && !isMul(fuOp) && !isDiv(fuOp)
 }
 
-object MemType extends FuOpType {
+object MemType extends ChiselEnum {
   val fence, fencei  = Value
   val ld, lw, lh, lb = Value
   val lwu, lhu, lbu  = Value
@@ -44,12 +63,86 @@ object MemType extends FuOpType {
   def isStore(op: MemType.Type) = {
     op.isOneOf(sb, sh, sw, sd, sc)
   }
+
+  private def parseRules(op: UInt, fmap: Seq[(Seq[Type], UInt)]) = {
+    val expanded = fmap.flatMap {
+      case (inputs, output) =>
+        inputs.map(input => BitPat(input.asUInt) -> BitPat(output))
+    }
+    val tTable = TruthTable(expanded, BitPat("b" + "?" * fmap.head._2.getWidth))
+    decoder(op, tTable)
+  }
+
+  def mask(op: UInt, lsb: UInt)(implicit p: Parameters) = {
+    val rules = Seq(
+      Seq(ld, lr, sd, sc) -> Seq(
+        BitPat("b???") -> "b1111_1111".U
+      ),
+      Seq(lw, lwu, sd) -> Seq(
+        BitPat("b0??") -> "b0000_1111".U,
+        BitPat("b1??") -> "b1111_0000".U
+      ),
+      Seq(lh, lhu, sh) -> Seq(
+        BitPat("b00?") -> "b0000_0011".U,
+        BitPat("b01?") -> "b0000_1100".U,
+        BitPat("b10?") -> "b0011_0000".U,
+        BitPat("b11?") -> "b1100_0000".U
+      ),
+      Seq(lb, lbu, sb) -> Seq(
+        BitPat("b000") -> "b0000_0001".U,
+        BitPat("b001") -> "b0000_0010".U,
+        BitPat("b010") -> "b0000_0100".U,
+        BitPat("b011") -> "b0000_1000".U,
+        BitPat("b100") -> "b0001_0000".U,
+        BitPat("b101") -> "b0010_0000".U,
+        BitPat("b110") -> "b0100_0000".U,
+        BitPat("b111") -> "b1000_0000".U
+      )
+    )
+    val expanded = rules.flatMap {
+      case (opSeq, lsbSeq) =>
+        lsbSeq.flatMap {
+          case (bitPat, rmask) =>
+            opSeq.map { op =>
+              BitPat(op.asUInt) ## bitPat -> BitPat(rmask)
+            }
+        }
+    }
+    decoder(Cat(op, lsb), TruthTable(expanded, BitPat("b????_????")))
+  }
+
+  def size(op: UInt)(implicit p: Parameters) = {
+    parseRules(
+      op,
+      Seq(
+        (Seq(ld, lr, sd, sc) -> MemDataSize.uint64.asUInt),
+        (Seq(lw, sw) -> MemDataSize.uint32.asUInt),
+        (Seq(lh, lhu, sh) -> MemDataSize.uint16.asUInt),
+        (Seq(lb, lbu, sb) -> MemDataSize.uint8.asUInt)
+      )
+    )
+  }
+
+  def tlbCmd(op: UInt)(implicit p: Parameters) = {
+    parseRules(
+      op,
+      Seq(
+        (Seq(ld, lw, lh, lb, lwu, lhu, lbu) -> TlbCmd.read.asUInt),
+        (Seq(sd, sw, sb, sh) -> TlbCmd.write.asUInt),
+        (Seq(sc) -> TlbCmd.atom_write.asUInt),
+        (Seq(lr) -> TlbCmd.atom_read.asUInt)
+      )
+    )
+  }
 }
 
-object AluType extends FuOpType {
-  val lui, slt, sltu, xor, or, and    = Value
+object AluType extends ChiselEnum {
+  /* logic */
+  val xor, or, and, lui = Value
+  /* shift */
   val sll, srl, sra, sllw, sraw, srlw = Value
-  val add, sub, addw, subw            = Value
+  /* adder */
+  val add, sub, addw, subw, slt, sltu = Value
 }
 
 //not need now
@@ -57,7 +150,7 @@ object BlockType extends ChiselEnum {
   val CACHEINST, SYNC, MFC0, NON = Value
 }
 
-object BranchType extends FuOpType {
+object BranchType extends ChiselEnum {
   val none, beq, bne, blt, bge, bltu, bgeu, jal, jalr = Value
   def isB(op: BranchType.Type): Bool = op.isOneOf(beq, bne, blt, bge, bltu, bgeu)
 
@@ -87,31 +180,19 @@ object BranchType extends FuOpType {
 
   case class BrDest(avaliable: Bool, dest: UInt)
   def calDest(brType: BranchType.Type, instr: RInstr, pc: UInt)(implicit p: Parameters): BrDest = {
-    require(instr.getWidth == 32)
-    require(pc.getWidth == VAddrBits)
-    val imm4to1   = Mux(isB(brType), instr(11, 8), instr(24, 21))
-    val imm11Bits = Mux(isB(brType), instr(7), instr(20))
-    val imm19to12 = Mux(isB(brType), instr(19, 12), Fill(19 - 12, instr(31)))
-    val imm       = Cat(instr(31), imm19to12, imm11Bits, instr(30, 25), imm4to1, 0.U(2.W))
-    BrDest(!brType.isOneOf(jalr, none), pc + SignExt(imm, VAddrBits))
+    val deleg = new CoreDelegate {
+      def apply(brType: BranchType.Type, instr: RInstr, pc: UInt) = {
+        require(instr.getWidth == 32)
+        require(pc.getWidth == VAddrBits)
+        val imm4to1   = Mux(isB(brType), instr(11, 8), instr(24, 21))
+        val imm11Bits = Mux(isB(brType), instr(7), instr(20))
+        val imm19to12 = Mux(isB(brType), instr(19, 12), Fill(19 - 12, instr(31)))
+        val imm       = Cat(instr(31), imm19to12, imm11Bits, instr(30, 25), imm4to1, 0.U(2.W))
+        BrDest(!brType.isOneOf(jalr, none), pc + SignExt(imm, VAddrBits))
+      }
+    }
+    deleg(brType, instr, pc)
   }
-}
-
-object FuType extends Enumeration {
-  type t = Value
-  // 自动赋值枚举成员
-  val Alu, Lsu, Mdu = Value
-  def needOBpIn(input: Value) = input == Alu
-  def needSBpIn(input: Value) = input == Alu || input == Lsu
-  def needBpIn(input:  Value) = needOBpIn(input) || needSBpIn(input)
-
-  def oBpNum(input: Value): Int = input match {
-    case alu => 2
-    case Lsu => 0
-    case Mdu => 0
-  }
-  def bpNum(input: Value): Int =
-    if (needSBpIn(input)) (oBpNum(input) + 1) else oBpNum(input)
 }
 
 object BtbType extends ChiselEnum {

@@ -27,17 +27,17 @@
 // class DiffPhyRegInROBIO extends DifftestBundle with MycpuParam {
 //   val robHead   = Input(UInt((log2Ceil(freeListSize) + 1).W))
 //   val robTail   = Input(UInt((log2Ceil(freeListSize) + 1).W))
-//   val rob       = Input(Vec(robNum, PRegIdx))
+//   val rob       = Input(Vec(robNum, PRegIdx()))
 //   val flrHead   = Input(UInt((log2Ceil(freeListSize) + 1).W))
 //   val flrTail   = Input(UInt((log2Ceil(freeListSize) + 1).W))
-//   val flr       = Input(Vec(robNum, PRegIdx))
+//   val flr       = Input(Vec(robNum, PRegIdx()))
 //   val isRecover = Input(Bool())
 // }
 
 // class DiffPhyRegInFreeListIO extends DifftestBundle with MycpuParam {
 //   val flHead = Input(UInt((log2Ceil(freeListSize) + 1).W))
 //   val flTail = Input(UInt((log2Ceil(freeListSize) + 1).W))
-//   val fl     = Input(Vec(freeListSize, PRegIdx))
+//   val fl     = Input(Vec(freeListSize, PRegIdx()))
 // }
 
 // class DiffBCacheIO extends DifftestBundle with MycpuParam {
@@ -162,13 +162,13 @@
 // }
 
 // class DiffFrontBrPredIO extends DifftestBundle with MycpuParam {
-//   val debugPC  = Input(Vec(fetchNum, UWord))
+//   val debugHW  = Input(Vec(fetchNum, UWord))
 //   val predType = Input(Vec(fetchNum, UInt(3.W)))
 //   val realType = Input(Vec(fetchNum, UInt(4.W)))
 // }
 
 // class DiffBackBrPredIO extends DifftestBundle with MycpuParam {
-//   val debugPC  = Input(UWord)
+//   val debugHW  = Input(UWord)
 //   val predTake = Input(Bool())
 //   val realTake = Input(Bool())
 //   val predDest = Input(UWord)
@@ -304,7 +304,7 @@
 //          |  always @(negedge io_clock) begin
 //          |    if (io_en) begin
 //          |      $dpicName (${funcCallStr.mkString(",")});
-//          |    end 
+//          |    end
 //          |  end
 //          |`endif
 //          |`endif
