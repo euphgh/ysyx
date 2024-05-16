@@ -8,11 +8,6 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import chisel3.experimental.conversions._
 
-class WakeUpBroadCast extends MycpuBundle {
-  val (fromMainAluIs, fromSubAluIs, fromMainAluRo, fromSubAluRo, fromLsu) =
-    (Valid(PRegIdx), Valid(PRegIdx), Valid(PRegIdx), Valid(PRegIdx), Valid(PRegIdx))
-}
-
 /**
   * allocate → writeIn - ready - select → readOp
   *
@@ -52,264 +47,129 @@ class WakeUpBroadCast extends MycpuBundle {
   *     use sEntry(psrc+valid) in RO,use pDest in WB
   *     use robIndex in WB
   */
-class RS(rsKind: FuType.t, rsSize: Int) extends MycpuModule {
+object OneHotMatrix {
+  def rowView(arr: Vec[Vec[Bool]]): Vec[UInt] = {
+    arr.map(_.asUInt)
+  }
+  def colView(arr: Vec[Vec[Bool]]): Vec[UInt] = {
+    arr.head.indices.map { index =>
+      arr.map(_(index)).asUInt
+    }
+  }
+}
+object MultiPriority {
+
+  /**
+    * select first $num one, return
+    *
+    * @param num
+    * @param data
+    * @return Seq($num, UInt(data.length.W)) saying the first $num's positio
+    *         if not exist, will return 0.U
+    */
+  def oneHots(num: Int, data: Vec[Bool]) = {
+    Seq(VecInit(false.B, true.B), VecInit(false.B, true.B))
+  }
+
+  def oneHots(num: Int, data: UInt) = {
+    Seq(VecInit(false.B, true.B), VecInit(false.B, true.B))
+  }
+}
+
+class FooPtr(implicit p: Parameters) extends CoreBundle {
+  val foo = new RobPtr
+}
+class RS(rsSize: Int, outNum: Int)(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
+    val flush = Input(Bool())
     val in = new Bundle {
-      val fromDispatcher = Flipped(Decoupled(new RsOutIO(rsKind)))
-      val wSratPIdx      = Vec(wBNum, Flipped(Valid(PRegIdx)))
-      val flush          = Input(Bool()) //mispredict retire,exception,eret
-      val oldestRobIdx   = Input(ROBIdx)
+      val fromDispatcher = Vec(renameNum, Flipped(DecoupledIO(new MicroOp)))
+      val wSratPIdx      = Vec(wBNum, Flipped(Valid(PRegIdx())))
+      val oldestRobIdx   = Input(RobPtr())
       val stqEmpty       = Input(Bool())
     }
-    val out = Decoupled(new RsRealOutIO(rsKind))
+    val out = Vec(outNum, DecoupledIO(new MicroOp))
   })
-  val outBits   = io.out.bits
-  val originOut = outBits.origin
 
-  val rsEntries  = Reg(Vec(rsSize, new RsOutIO(rsKind)))
+  def MuxOneHotDefault[T <: Data](oneHot: Seq[Bool], data: Seq[T], default: T) = {
+    val useDefault = !oneHot.asUInt.orR
+    ParallelMux(oneHot.appended(useDefault), data.appended(default))
+  }
+
+  val rsEntries  = Reg(Vec(rsSize, new MicroOp))
   val slotsValid = RegInit(VecInit(Seq.fill(rsSize)(false.B)))
-  val deqSel     = Wire(Vec(rsSize, Bool())) //one-hot or all-zero
-  val enqSlot    = WireInit(0.U(log2Up(rsSize).W)) //default
 
-  val srcsWaken = RegInit(VecInit(Seq.fill(rsSize)(VecInit(Seq.fill(srcDataNum)(false.B)))))
-  val mayNeedBp = RegInit(VecInit(Seq.fill(rsSize)(VecInit(Seq.fill(srcDataNum)(false.B)))))
-  val inPrf     = WireInit(VecInit(Seq.fill(rsSize)(VecInit(Seq.fill(srcDataNum)(false.B)))))
-  val src1Rdy   = WireInit(VecInit(List.tabulate(rsSize)(i => inPrf(i)(0) | srcsWaken(i)(0))))
-  val src2Rdy   = WireInit(VecInit(List.tabulate(rsSize)(i => inPrf(i)(1) | srcsWaken(i)(1))))
-  (0 until rsSize).map(i => {
-    val rsB = rsEntries(i).basic
-    (0 until srcDataNum).map(j => {
-      val beenWb = WireInit(VecInit(List.tabulate(wBNum)(k => rsB.wbInfo(k) === rsB.pSrcs(j)))).asUInt.orR
-      //inPrf(i)(j) := rsB.grpInPrf(j) & (beenWb | rsB.sratInPrf(j))
-      inPrf(i)(j) := rsB.grpInPrf(j) & (rsB.wbInPrf(j) | rsB.sratInPrf(j))
-    })
-  })
+  val leftSlotNum = PopCount(slotsValid)
+  io.in.fromDispatcher.map(_.ready := leftSlotNum > renameNum.U)
 
-  val isOldestVec = (0 until rsSize).map(i => rsEntries(i).basic.robIndex === io.in.oldestRobIdx)
-  val blockVec    = WireInit(VecInit(Seq.fill(rsSize)(false.B)))
-  if (rsKind == FuType.Lsu) {
-    import MemType._
-    (0 until rsSize).map(i =>
-      asg(
-        blockVec(i),
-        rsEntries(i).uOp.memType.get.isOneOf(CACHEINST, SC, LL, LWL, LWR)
-      )
-    )
-  }
-  if (rsKind == FuType.Mdu) {
-    import MduType._
-    (0 until rsSize).map(i => asg(blockVec(i), rsEntries(i).uOp.mduType.get.isOneOf(MFC0, TLBP, TLBR, TLBWI, TLBWR)))
-  }
-  if (rsKind == FuType.MainAlu) {
-    import AluType._
-    (0 until rsSize).map(i => {
-      val aluType = rsEntries(i).uOp.aluType.get
-      asg(blockVec(i), aluType.isOneOf(MOVN, MOVZ))
-    })
-  }
-
-  val slotsRdy = Wire(Vec(rsSize, Bool()))
-  (0 until rsSize).foreach(i => {
-    val releaseCond =
-      if (rsKind == FuType.Lsu) io.in.stqEmpty && isOldestVec(i) else isOldestVec(i)
-    slotsRdy(i) := src1Rdy(i) && src2Rdy(i) && slotsValid(i) && Mux(blockVec(i), releaseCond, true.B)
-  })
-
-  val letLLGoState = Wire(Bool())
-  BoringUtils.addSink(letLLGoState, "llgoState")
-  if (rsKind == FuType.Lsu) {
-    (0 until rsSize).foreach(i => {
-      when(rsEntries(i).uOp.memType.get === MemType.LL) {
-        when(!letLLGoState) {
-          slotsRdy(i) := false.B
-        }
+  val allRobPtr    = VecInit(rsEntries.map(_.robIdx))
+  val enqSelectors = OneHotMatrix.colView(MultiPriority.oneHots(renameNum, slotsValid.map(!_)))
+  val validEnq     = io.in.fromDispatcher.head.valid && leftSlotNum > renameNum.U
+  when(validEnq) {
+    (0 until rsSize).map { index =>
+      when(enqSelectors(index).asUInt.orR) {
+        rsEntries(index)  := Mux1H(enqSelectors(index), io.in.fromDispatcher.map(_.bits))
+        slotsValid(index) := Mux1H(enqSelectors(index), io.in.fromDispatcher.map(_.valid))
+        allRobPtr(index)  := Mux1H(enqSelectors(index), io.in.fromDispatcher.map(_.bits.robIdx))
       }
-    })
-  }
-
-  /**
-    * ageMask:
-    *   attention:in and out fire together
-    *   当outfire时，slotsvalid下一拍才会拉低
-    *   这一拍进来的slot的那一行agemask对应deqslot的那一位需要是false
-    */
-  val ageMask = RegInit(VecInit(Seq.fill(rsSize)(VecInit(Seq.fill(rsSize)(false.B)))))
-  when(io.in.fromDispatcher.fire) { ageMask(enqSlot) := slotsValid }
-  when(io.out.fire) {
-    ageMask.foreach(msk => {
-      (0 until rsSize).map(idx =>
-        when(deqSel(idx)) {
-          asg(msk(idx), false.B)
-        }
-      )
-    })
-  }
-
-  //wake-up
-  val wakeUpSource = Wire(Valid(PRegIdx))
-  wakeUpSource.bits  := originOut.basic.destPregAddr
-  wakeUpSource.valid := io.out.fire
-  if (rsKind == FuType.MainAlu) {
-    val outAluType = originOut.uOp.aluType.get
-    when(outAluType === AluType.MOVN || outAluType === AluType.MOVZ) {
-      wakeUpSource.valid := false.B //这两条指令会在ro阶段停两拍，暂时不将他们作为唤醒源
     }
   }
 
-  val wakeUpReceive = Wire(new WakeUpBroadCast)
-  wakeUpReceive                     := DontCare
-  wakeUpReceive.fromLsu.valid       := false.B
-  wakeUpReceive.fromMainAluIs.valid := false.B
-  wakeUpReceive.fromSubAluIs.valid  := false.B
-  wakeUpReceive.fromMainAluRo.valid := false.B
-  wakeUpReceive.fromSubAluRo.valid  := false.B
+  val ageMask = allRobPtr.map(l => allRobPtr.map(r => RegNext(l > r, false.B)))
 
-  if (rsKind == FuType.MainAlu) {
-    BoringUtils.addSink(wakeUpReceive.fromSubAluIs, "sAluIsWakeUp") //receive
-    BoringUtils.addSink(wakeUpReceive.fromLsu, "LsuM1WakeUp") //receive
-    wakeUpReceive.fromMainAluIs := wakeUpSource
-    BoringUtils.addSource(wakeUpSource, "mAluIsWakeUp")
-  } else if (rsKind == FuType.SubAlu) {
-    BoringUtils.addSink(wakeUpReceive.fromMainAluIs, "mAluIsWakeUp") //receive
-    BoringUtils.addSink(wakeUpReceive.fromLsu, "LsuM1WakeUp") //receive
-    wakeUpReceive.fromSubAluIs := wakeUpSource
-    BoringUtils.addSource(wakeUpSource, "sAluIsWakeUp")
-  } else if (rsKind == FuType.Lsu) {
-    //BoringUtils.addSink(wakeUpReceive.fromSubAluRo, "sAluRoWakeUp")
-    //BoringUtils.addSink(wakeUpReceive.fromMainAluRo, "mAluRoWakeUp")
-    BoringUtils.addSink(wakeUpReceive.fromLsu, "LsuM1WakeUp")
-    //BoringUtils.addSink(wakeUpReceive.fromSubAluIs, "sAluIsWakeUp")
-    //BoringUtils.addSink(wakeUpReceive.fromMainAluIs, "mAluIsWakeUp")
-  }
-  // else {
-  //   BoringUtils.addSink(wakeUpReceive.fromSubAluRo, "sAluRoWakeUp")
-  //   BoringUtils.addSink(wakeUpReceive.fromMainAluRo, "mAluRoWakeUp")
-  // }
-
-  val wakeUpByPass = List(
-    wakeUpReceive.fromMainAluIs,
-    wakeUpReceive.fromSubAluIs,
-    wakeUpReceive.fromLsu
-  )
-  val wakeUpBroad = List(
-    wakeUpReceive.fromMainAluRo,
-    wakeUpReceive.fromSubAluRo,
-    wakeUpReceive.fromMainAluIs, //bypass
-    wakeUpReceive.fromSubAluIs, //bypass
-    wakeUpReceive.fromLsu //bypass
-  )
-  wakeUpBroad.foreach(e =>
-    List.tabulate(rsSize)(j => {
-      val pSrcs = rsEntries(j).basic.pSrcs
-      when(slotsValid(j) && e.valid && e.bits.orR) {
-        when(e.bits === pSrcs(0)) { srcsWaken(j)(0) := true.B }
-        when(e.bits === pSrcs(1)) { srcsWaken(j)(1) := true.B }
+  val readyArr = (0 until rsSize).map { index =>
+    val entry = rsEntries(index)
+    def wbWake(psrc: UInt, regNext: Boolean = false) = {
+      val wbHit = io.in.wSratPIdx.map { port =>
+        val wb = if (regNext) RegNext(port) else port
+        wb.valid && wb.bits === psrc
       }
-    })
-  )
-  wakeUpByPass.foreach(e =>
-    List.tabulate(rsSize)(j => {
-      val pSrcs = rsEntries(j).basic.pSrcs
-      when(slotsValid(j) && e.valid && e.bits.orR) {
-        when(e.bits === pSrcs(0)) { mayNeedBp(j)(0) := true.B }
-        when(e.bits === pSrcs(1)) { mayNeedBp(j)(1) := true.B }
-      }
-    })
-  )
-
-  /**
-    * rs enqueue
-    * enq not zip,fill in minIndex notValid Slot
-    */
-  //(log2Up(rsSize + 1).W)
-  val rsFull = slotsValid.asUInt.andR
-  io.in.fromDispatcher.ready := ~rsFull
-  val emptySlot = ~slotsValid.asUInt
-  when(~rsFull) { asg(enqSlot, PriorityEncoder(emptySlot)) }
-  when(io.in.fromDispatcher.fire) {
-    rsEntries(enqSlot)  := io.in.fromDispatcher.bits
-    slotsValid(enqSlot) := true.B
+      wbHit.asUInt.orR
+    }
+    val src0Ready = entry.pRegsMeta(0).inPrf && wbWake(entry.pRegsMeta(0).pIdx)
+    val src1Ready = entry.pRegsMeta(1).inPrf && wbWake(entry.pRegsMeta(0).pIdx)
+    src1Ready && src0Ready
   }
 
-  /**
-    * rs dequeue
-    *   must slotsRdy
-    *   priority:
-    *     older not ready/not any older
-    *     bru is special
-    */
-  asg(io.out.valid, deqSel.asUInt.orR)
+  /* there exiet **one valid ready** slot which robPtr is younger */
+  val oldestOneHot = ageMask.zipWithIndex.map {
+    case (younger, index) =>
+      val existOlder = (younger.asUInt & slotsValid.asUInt & readyArr.asUInt).orR
+      val isValid    = slotsValid(index)
+      isValid && !existOlder
+  }
+  assert(PopCount(oldestOneHot) <= 1.U)
 
-  if (rsKind == FuType.Mdu || rsKind == FuType.Lsu) {
-    (0 until rsSize).map(i => asg(deqSel(i), !(ageMask(i).asUInt.orR) && slotsRdy(i)))
-  }
-  if (rsKind == FuType.SubAlu) {
-    (0 until rsSize).map(i => asg(deqSel(i), !((ageMask(i).asUInt & slotsRdy.asUInt).orR) && slotsRdy(i)))
-  }
-  if (rsKind == FuType.MainAlu) {
-    val isBranch =
-      WireInit(
-        VecInit(List.tabulate(rsSize)(i => rsEntries(i).uOp.brType.get =/= BranchType.NON && slotsValid(i)))
-      )
-    (0 until rsSize).map(i =>
-      asg(
-        deqSel(i),
-        !((ageMask(i).asUInt & slotsRdy.asUInt).orR) && slotsRdy(i) && !(isBranch(i) & ((ageMask(
-          i
-        ).asUInt & isBranch.asUInt).orR))
-      )
-    )
+  require(outNum >= 1)
+
+  io.out.head.valid := oldestOneHot.asUInt.orR
+  io.out.head.bits  := Mux1H(oldestOneHot, rsEntries)
+
+  var leftDeqOneHot: Seq[Vec[Bool]] = Seq()
+  if (outNum > 1) {
+    val leftValid = slotsValid.asUInt & ~oldestOneHot.asUInt
+    leftDeqOneHot = MultiPriority.oneHots(outNum - 1, readyArr.asUInt & leftValid)
+    (1 until outNum).foreach { index =>
+      val out = io.out(index)
+      out.valid := leftDeqOneHot(index).asUInt.orR
+      out.bits  := Mux1H(leftDeqOneHot(index), rsEntries)
+
+    }
+
+    when(!io.out.head.valid) {
+      assert((io.out.tail.map(_.valid)).asUInt.orR)
+    }
   }
 
-  when(io.out.fire) {
-    assert(PopCount(deqSel) === 1.U)
+  val deqValids = io.out.map(_.fire)
+  when(deqValids.asUInt.orR) {
+    val deqSelectors = OneHotMatrix.colView(Seq(VecInit(oldestOneHot)) ++ leftDeqOneHot)
+    require(deqSelectors.length == outNum)
+    (0 until rsSize).map { index =>
+      slotsValid(index) := io.out(index).fire
+    }
   }
-  originOut         := Mux1H(deqSel, rsEntries)
-  outBits.mayNeedBp := Mux1H(deqSel, mayNeedBp)
-  outBits.inPrf     := Mux1H(deqSel, inPrf)
-  when(io.out.fire) {
-    (0 until rsSize).foreach(i => {
-      when(deqSel(i)) {
-        asg(slotsValid(i), false.B)
-        asg(srcsWaken(i)(0), false.B)
-        asg(srcsWaken(i)(1), false.B)
-        asg(mayNeedBp(i)(0), false.B)
-        asg(mayNeedBp(i)(1), false.B)
-      }
-    })
-  }
-  //listen to wSratPIdx
-  val outNeedBp = outBits.mayNeedBp
-  val outInPrf  = outBits.inPrf
-  List.tabulate(wBNum)(i =>
-    List.tabulate(rsSize)(j => {
-      val wprf = io.in.wSratPIdx(i)
-      val rsB  = rsEntries(j).basic
-      val srcs = rsB.pSrcs
-      when(wprf.valid && slotsValid(j)) {
-        (0 until srcDataNum).map(k => {
-          when(wprf.bits === srcs(k)) {
-            rsB.grpInPrf(k)  := true.B
-            rsB.sratInPrf(k) := true.B
-            rsB.wbInPrf(k)   := true.B
-            mayNeedBp(j)(k)  := false.B
-            when(deqSel(j)) {
-              outInPrf(k)  := true.B
-              outNeedBp(k) := false.B //暂时没用上，但先加上
-            }
-          }
-        })
-      }
-    })
-  )
-
-  //flush
-  when(io.in.flush) {
-    List.tabulate(rsSize)(i => {
-      ageMask(i)    := VecInit(Seq.fill(rsSize)(false.B))
-      slotsValid(i) := false.B
-    })
-    srcsWaken := VecInit(Seq.fill(rsSize)(VecInit(Seq.fill(srcDataNum)(false.B))))
-    mayNeedBp := VecInit(Seq.fill(rsSize)(VecInit(Seq.fill(srcDataNum)(false.B))))
+  when(io.flush) {
+    slotsValid.foreach(_ := false.B)
   }
 }
