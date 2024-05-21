@@ -1,12 +1,7 @@
 package utils
 import chisel3._
-import chisel3.util.BitPat
-import chisel3.util.experimental.decode.decoder
-import chisel3.util.experimental.decode.TruthTable
-import chisel3.util.PriorityEncoderOH
-import chisel3.util.experimental.decode.QMCMinimizer
-import chisel3.util.PriorityEncoder
-import chisel3.util.log2Ceil
+import chisel3.util.experimental.decode._
+import chisel3.util._
 
 object PriorityVec {
   def apply(inputs: Vec[UInt]): UInt = {
@@ -118,5 +113,35 @@ object CountMask {
       })
       .toList
     decoder(QMCMinimizer, input, TruthTable(bitPats, BitPat("b" + "?" * n)))
+  }
+}
+
+object MultiPriority {
+
+  /**
+    * select first $num one, return
+    *
+    * @param num
+    * @param data
+    * @return Seq($num, UInt(data.length.W)) saying the first $num's positio
+    *         if not exist, will return 0.U
+    */
+  def oneHots(num: Int, data: Seq[Bool]) = {
+    Seq(VecInit(false.B, true.B), VecInit(false.B, true.B))
+  }
+
+  def oneHots(num: Int, data: UInt) = {
+    Seq(VecInit(false.B, true.B), VecInit(false.B, true.B))
+  }
+}
+
+object OneHotMatrix {
+  def rowView(arr: Seq[Seq[Bool]]): Vec[UInt] = {
+    VecInit(arr.map(VecInit(_).asUInt))
+  }
+  def colView(arr: Seq[Seq[Bool]]): Vec[UInt] = {
+    VecInit(arr.head.indices.map { index =>
+      VecInit(arr.map(_(index))).asUInt
+    })
   }
 }

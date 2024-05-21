@@ -54,11 +54,11 @@ trait RocketChip extends millbuild.`rocket-chip`.common.RocketChipModule with Ha
 
   override def millSourcePath = os.pwd / "rocket-chip"
 
-  def macrosModule = macros
+  override def macrosModule = macros
 
-  def hardfloatModule = hardfloat(crossValue)
+  override def hardfloatModule = hardfloat(crossValue)
 
-  def cdeModule = cde
+  override def cdeModule = cde
 
   def mainargsIvy = ivy"com.lihaoyi::mainargs:0.5.4"
 

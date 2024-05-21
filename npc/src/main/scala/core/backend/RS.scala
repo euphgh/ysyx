@@ -47,34 +47,6 @@ import chisel3.experimental.conversions._
   *     use sEntry(psrc+valid) in RO,use pDest in WB
   *     use robIndex in WB
   */
-object OneHotMatrix {
-  def rowView(arr: Vec[Vec[Bool]]): Vec[UInt] = {
-    arr.map(_.asUInt)
-  }
-  def colView(arr: Vec[Vec[Bool]]): Vec[UInt] = {
-    arr.head.indices.map { index =>
-      arr.map(_(index)).asUInt
-    }
-  }
-}
-object MultiPriority {
-
-  /**
-    * select first $num one, return
-    *
-    * @param num
-    * @param data
-    * @return Seq($num, UInt(data.length.W)) saying the first $num's positio
-    *         if not exist, will return 0.U
-    */
-  def oneHots(num: Int, data: Vec[Bool]) = {
-    Seq(VecInit(false.B, true.B), VecInit(false.B, true.B))
-  }
-
-  def oneHots(num: Int, data: UInt) = {
-    Seq(VecInit(false.B, true.B), VecInit(false.B, true.B))
-  }
-}
 
 class FooPtr(implicit p: Parameters) extends CoreBundle {
   val foo = new RobPtr
@@ -115,7 +87,7 @@ class RS(rsSize: Int, outNum: Int)(implicit p: Parameters) extends CoreModule {
     }
   }
 
-  val ageMask = allRobPtr.map(l => allRobPtr.map(r => RegNext(l > r, false.B)))
+  val ageMask = allRobPtr.map(l => allRobPtr.map(r => RegNext(l < r, false.B)))
 
   val readyArr = (0 until rsSize).map { index =>
     val entry = rsEntries(index)

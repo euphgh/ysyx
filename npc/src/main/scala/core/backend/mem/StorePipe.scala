@@ -62,7 +62,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
   val s1 = new MemDelegate {
     val out = Decoupled(new MicroOp {
       import DCacheHelper._
-      val wmask     = Vec(XLEN / 8, Bool())
+      val wmask     = Vec(XBYTE, Bool())
       val wdata     = UWord()
       val tlbResp   = new TlbResp
       val tlb2ndReq = new TlbReq
@@ -81,7 +81,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
   val s2 = new MemDelegate {
     val out = Decoupled(new MicroOp {
       val paddr = UInt(PAddrBits.W)
-      val wmask = Vec(XLEN / 8, Bool())
+      val wmask = Vec(XBYTE, Bool())
       val wdata = UWord()
       val pmp   = new PMPRespIO
     })
@@ -131,7 +131,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
   val s3 = new MemDelegate {
     val out = Decoupled(new MicroOp {
       val paddr = UInt(PAddrBits.W)
-      val wmask = Vec(XLEN / 8, Bool())
+      val wmask = Vec(XBYTE, Bool())
       val pmp   = new PMPRespIO
     })
     val in = PipelineNext(s2.out, out.fire, io.redirect.valid)

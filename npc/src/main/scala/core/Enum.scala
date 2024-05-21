@@ -57,11 +57,11 @@ object MemType extends ChiselEnum {
   val sd, sw, sb, sh = Value
   val sc, lr         = Value
 
-  def isLoad(op: MemType.Type) = {
-    op.isOneOf(lb, lbu, lh, lhu, lw, lwu, ld, lr)
+  def isLoad(op: UInt) = {
+    op.asTypeOf(MemType()).isOneOf(lb, lbu, lh, lhu, lw, lwu, ld, lr)
   }
-  def isStore(op: MemType.Type) = {
-    op.isOneOf(sb, sh, sw, sd, sc)
+  def isStore(op: UInt) = {
+    op.asTypeOf(MemType()).isOneOf(sb, sh, sw, sd, sc)
   }
 
   private def parseRules(op: UInt, fmap: Seq[(Seq[Type], UInt)]) = {

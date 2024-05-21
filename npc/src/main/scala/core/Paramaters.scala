@@ -4,7 +4,7 @@ import org.chipsalliance.cde.config._
 import utility._
 import chisel3._
 import chisel3.util._
-import core.cache.ICacheParams
+import core.cache._
 
 case object SoCParamsKey extends Field[SoCParameters]
 
@@ -61,7 +61,7 @@ trait HasMyParams {
   implicit val p: Parameters
   val cores = p(CoreParamsKey)
   val XLEN  = cores.XLEN
-  def xLen  = XLEN
+  val XBYTE = XLEN / 8
 
   val EnableDebugHW = p(DebugOptionsKey).EnableDebug
   // configurable:

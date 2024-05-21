@@ -73,7 +73,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
       import DCacheHelper._
       val meta  = Vec(nWays, new DCacheMeta)
       val data  = Vec(nWays, UWord())
-      val rmask = Vec(XLEN / 8, Bool())
+      val rmask = Vec(XBYTE, Bool())
 
       val tlbResp   = new TlbResp
       val tlb2ndReq = new TlbReq
@@ -105,7 +105,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
   val s2 = new MemDelegate {
     val out = Decoupled(new MicroOp {
       val paddr = UInt(PAddrBits.W)
-      val rmask = Vec(XLEN / 8, Bool())
+      val rmask = Vec(XBYTE, Bool())
       val dCacheResp = new Bundle {
         val hit   = Bool()
         val datas = UWord()
