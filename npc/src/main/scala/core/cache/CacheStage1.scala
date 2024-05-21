@@ -73,11 +73,11 @@ class CacheStage1(
   } else {
     asg(searchIndex, Mux(io.in.valid, io.in.bits.rwReq.get.lowAddr.index, stageReg.rwReq.get.lowAddr.index))
   }
-  val r2data = List.fill(roads)(Wire(Flipped(new DPReadBus(Vec(wordNum, UWord), lineNum))))
-  val w2data = List.fill(roads)(Wire(Flipped(new DPWriteBus(Vec(wordNum, UWord), lineNum))))
+  val r2data = List.fill(roads)(Wire(Flipped(new DPReadBus(Vec(wordNum, UInt32), lineNum))))
+  val w2data = List.fill(roads)(Wire(Flipped(new DPWriteBus(Vec(wordNum, UInt32), lineNum))))
   val w2meta = List.fill(roads)(Wire(Flipped(new DPWriteBus(new CacheMeta(isDcache), lineNum))))
   val metas  = List.fill(roads)(Module(DualPortsSRAM(new CacheMeta(isDcache), lineNum, true, true)))
-  val datas  = List.fill(roads)(Module(DualPortsSRAM(Vec(wordNum, UWord), lineNum, true, true)))
+  val datas  = List.fill(roads)(Module(DualPortsSRAM(Vec(wordNum, UInt32), lineNum, true, true)))
 
   val w2offset = WireInit(0.U(cOffWid.W))
   val w2Mask   = WireInit(0.U(4.W))

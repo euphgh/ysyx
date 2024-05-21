@@ -20,7 +20,7 @@ object SizeType extends ChiselEnum {
 
 class ARChannel(val idLen: Int = 4)(implicit p: Parameters) extends CoreBundle {
   val id    = UInt(idLen.W)
-  val addr  = UWord
+  val addr  = UInt32
   val len   = UInt(4.W) // burst number
   val size  = UInt(3.W) // bytes number - 1
   val burst = BurstType()
@@ -28,13 +28,13 @@ class ARChannel(val idLen: Int = 4)(implicit p: Parameters) extends CoreBundle {
 
 class RChannel(val idLen: Int = 4)(implicit p: Parameters) extends CoreBundle {
   val id   = UInt(idLen.W)
-  val data = UWord
+  val data = UInt32
   val last = Bool()
 }
 
 class AWChannel(val idLen: Int = 4)(implicit p: Parameters) extends CoreBundle {
   val id    = UInt(idLen.W)
-  val addr  = UWord
+  val addr  = UInt32
   val len   = UInt(4.W) // burst number
   val size  = UInt(3.W) // bytes number - 1
   val burst = BurstType()
@@ -43,7 +43,7 @@ class AWChannel(val idLen: Int = 4)(implicit p: Parameters) extends CoreBundle {
 
 class WChannel(val idLen: Int = 4)(implicit p: Parameters) extends CoreBundle {
   val id   = UInt(idLen.W)
-  val data = UWord
+  val data = UInt32
   val strb = UInt((VAddrBits / 8).W)
   val last = Bool()
 }

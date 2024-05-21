@@ -34,7 +34,7 @@ object ICache {
   }
   class Resp(implicit p: Parameters) extends CoreBundle {
     val toUser = Output(Vec(fetchNum, new UserData))
-    val data   = Output(Vec(fetchNum, UDoub))
+    val data   = Output(Vec(fetchNum, UWord()))
   }
   class Ctrl(implicit p: Parameters) extends CoreBundle {
     val stageFire = Input(Bool())

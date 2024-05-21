@@ -9,7 +9,7 @@ import org.chipsalliance.cde.config._
 
 class CacheInstBundle(implicit p: Parameters) extends CoreBundle {
   val op    = Output(CacheOp())
-  val taglo = Output(UWord)
+  val taglo = Output(UInt32)
 }
 
 class CacheLowAddr(lineBytes: Int)(implicit p: Parameters) extends CoreBundle {
@@ -24,7 +24,7 @@ class CacheRWReq(lineBytes: Int)(implicit p: Parameters) extends CoreBundle {
   val lowAddr = new CacheLowAddr(lineBytes)
   val isWrite = Bool()
   val size    = UInt(3.W)
-  val wWord   = UWord
+  val wWord   = UInt32
   val wStrb   = UInt(4.W)
 }
 
@@ -43,12 +43,12 @@ class CacheStage1OutIO(roads: Int, wordNum: Int, isDcache: Boolean)(implicit p: 
   val lowAddrHit = Vec(roads, Bool())
   val rawMask    = UInt(4.W)
   // ICache
-  val idata     = if (!isDcache) Some(Vec(roads, Output(Vec(fetchNum, UWord)))) else None
+  val idata     = if (!isDcache) Some(Vec(roads, Output(Vec(fetchNum, UInt32)))) else None
   val iCacheReq = if (!isDcache) Some(new CacheLowAddr(lineBytes)) else None
   // DCache
-  val ddata     = if (isDcache) Some(Vec(roads, Output(UWord))) else None
+  val ddata     = if (isDcache) Some(Vec(roads, Output(UInt32))) else None
   val dCacheReq = if (isDcache) Some(new CacheRWReq(lineBytes)) else None
-  val dataline  = if (isDcache) Some(Vec(roads, Output(Vec(wordNum, UWord)))) else None
+  val dataline  = if (isDcache) Some(Vec(roads, Output(Vec(wordNum, UInt32)))) else None
 }
 
 class CacheStage1In(isDcache: Boolean, lineBytes: Int)(implicit p: Parameters) extends CoreBundle {
