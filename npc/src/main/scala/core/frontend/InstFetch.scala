@@ -66,7 +66,7 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
   val if2AssignBtb = Wire(new BtbAssignBundle)
   if2AssignBtb.tagIdx := if2Wio.tagIdx
   val if2OutWen      = Wire(Vec(fetchNum, Bool()))
-  val if2OutTarget   = Wire(Vec(fetchNum, UInt32))
+  val if2OutTarget   = Wire(Vec(fetchNum, UInt32()))
   val if2OutInstType = Wire(Vec(fetchNum, BtbType()))
   (0 until fetchNum).foreach { i =>
     import BranchType._

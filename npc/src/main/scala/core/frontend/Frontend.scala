@@ -11,23 +11,19 @@ import core.dram._
 
 class Frontend(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
-    val redirect = FrontRedirct.input()
-    val out      = Vec(renameNum, Decoupled(new InstBufferOutIO))
-
-    val ptw         = new TlbPtwIO()
-    val imem        = new DramReadIO()
-    val bpuUpdateIn = Flipped(new BpuUpdateIO)
+    val back = new FrontBackIO()
+    val imem = new DramReadIO()
   })
 
   val instFetch  = Module(new InstFetch)
   val instBuffer = Module(new InstBuffer)
 
-  instFetch.io.bpuUpdateIn := io.bpuUpdateIn
+  instFetch.io.bpuUpdateIn := io.back.bpuUpdateIn
   instFetch.io.imem <> io.imem
-  instFetch.io.redirect := io.redirect
-  instFetch.io.ptw <> io.ptw
+  instFetch.io.redirect := io.back.redirect
+  instFetch.io.ptw <> io.back.ptw
 
   instFetch.io.out <> instBuffer.io.in //not pipeline connect
-  io.out <> instBuffer.io.out
-  instBuffer.io.flush := io.redirect.valid
+  io.back.instructions <> instBuffer.io.out
+  instBuffer.io.flush := io.back.redirect.valid
 }

@@ -50,7 +50,7 @@ class IfStage1(implicit p: Parameters) extends CoreModule with BCacheHelp {
     val bCacheW = Flipped(Valid(new BCacheWIO))
     val btbWen  = new BtbUpdateIO
     val phtWen  = new PhtUpdateIO
-    val rasPush = Flipped(Valid(UInt32))
+    val rasPush = Flipped(Valid(UInt32()))
     val rasPop  = Input(Bool())
   })
 

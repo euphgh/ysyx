@@ -9,7 +9,7 @@ import org.chipsalliance.cde.config._
 
 class BtbOutIO(implicit p: Parameters) extends CoreBundle {
   val instType = BtbType()
-  val target   = UInt32
+  val target   = UInt32()
 }
 class PhtOutIO(implicit p: Parameters) extends CoreBundle {
   val cnt  = UInt(2.W)
@@ -18,13 +18,13 @@ class PhtOutIO(implicit p: Parameters) extends CoreBundle {
 
 class RetAddrStack(spec: Boolean, size: Int)(implicit p: Parameters) extends CoreModule {
   class RecoverIO(implicit p: Parameters) extends CoreBundle {
-    val stack = Vec(size, UInt32)
+    val stack = Vec(size, UInt32())
     val ptr   = UInt(log2Ceil(size).W)
   }
   val io = IO(new Bundle {
-    val push    = Flipped(Valid(UInt32))
+    val push    = Flipped(Valid(UInt32()))
     val pop     = Input(Bool())
-    val topData = Output(UInt32)
+    val topData = Output(UInt32())
   })
   require(isPow2(size))
   val maxTop = (size - 1).U
@@ -181,12 +181,12 @@ class LocHisTab(implicit p: Parameters) extends CoreModule {
     val data     = Flipped(Vec(fetchNum, Valid(Bool())))
   })
 
-  val readAddr = List.fill(fetchNum)(IO(Flipped(Valid(UInt32))))
+  val readAddr = List.fill(fetchNum)(IO(Flipped(Valid(UInt32()))))
   val readRes  = List.fill(fetchNum)(IO(Output(new LhtOutIO)))
 
-  val writePC = Wire(UInt32)
+  val writePC = Wire(UInt32())
   asg(writePC, Cat(update.tagIdx, update.instrOff(0), 0.U(2.W)))
-  val writePCr = Reg(UInt32); writePCr := writePC
+  val writePCr = Reg(UInt32()); writePCr := writePC
 
   if (verilator) {
     // TODO: fix Difftest
@@ -331,7 +331,7 @@ class BasicBPU[T <: Data](
     val instrOff = Input(Vec(4, UInt(instrOffWidth.W)))
     val data     = Flipped(Vec(fetchNum, Valid(gen)))
   })
-  val readAddr = List.fill(fetchNum)(IO(Flipped(Valid(UInt32))))
+  val readAddr = List.fill(fetchNum)(IO(Flipped(Valid(UInt32()))))
   val readRes  = List.fill(fetchNum)(IO(Output(gen)))
   def access(address: UInt, ports: Int) = {
     this.readAddr(ports) := address
@@ -435,7 +435,7 @@ object PatternHistoryTable {
 }
 
 class BpuUpdateIO(implicit p: Parameters) extends CoreBundle {
-  val pc  = Output(UInt32)
+  val pc  = Output(UInt32())
   val btb = Valid(new BtbOutIO)
   val pht = Valid(new PhtOutIO)
 }
@@ -445,8 +445,8 @@ trait BCacheHelp { this: CoreModule =>
   val bCacheidxWidth   = 7
   val bCacheMemUseSRAM = false
   class BCacheWIO(implicit p: Parameters) extends CoreBundle {
-    val pc  = UInt32
-    val dst = UInt32
+    val pc  = UInt32()
+    val dst = UInt32()
   }
   def lowWidth       = log2Ceil(fetchNum)
   val bCacheTagWidth = 32 - bCacheidxWidth - lowWidth
@@ -464,8 +464,8 @@ trait BCacheHelp { this: CoreModule =>
 
 class BCache(implicit p: Parameters) extends CoreModule with BCacheHelp {
   val io = IO(new Bundle {
-    val readAddr = Flipped(Valid(UInt32))
-    val readRes  = Valid(UInt32)
+    val readAddr = Flipped(Valid(UInt32()))
+    val readRes  = Valid(UInt32())
     val write    = Flipped(Valid(new BCacheWIO))
   })
   val ramWidth = bCacheTagWidth + 32

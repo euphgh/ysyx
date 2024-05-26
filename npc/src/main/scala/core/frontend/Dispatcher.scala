@@ -11,7 +11,7 @@ import chisel3.experimental.conversions._
 class Decoder(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
     val in = new Bundle {
-      val instr     = UInt32
+      val instr     = UInt32()
       val exception = FrontExcCode()
     }
     val out = new CtrlFlow
@@ -56,16 +56,14 @@ class dispatchSlot(implicit p: Parameters) extends CoreBundle {
 class Dispatcher(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
     val in = new Bundle {
-      val fromIBuffer = Vec(renameNum, Flipped(Valid(new InstBufferOutIO)))
+      val fromIBuffer = Vec(renameNum, Flipped(Decoupled(new InstBufferOutIO)))
       val fuWbSrat    = Vec(wBNum, Flipped(Valid(new RATWriteBackIO)))
-      val robIdx      = Input(RobPtr())
+      val enqRobPtr   = Input(RobPtr())
     }
-
-    val fronRedirect = new FrontRedirct
 
     val recover = new Bundle {
       val SpecRAT  = Flipped(Valid(Vec(aRegNum, new SrcRegMeta)))
-      val freeList = Flipped(Valid(UInt(12.W)))
+      val freeList = Flipped(Valid(FreeListPtr()))
     }
 
     val out = new Bundle {
@@ -94,6 +92,8 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
   val robReady      = io.out.toRob.map(_.ready).asUInt.andR
   val allReady      = rsReady && freeListReady && robReady
 
+  io.in.fromIBuffer.map(_.ready := allReady)
+
   (0 until renameNum).foreach { index =>
     val fromIBuffer = io.in.fromIBuffer(index).bits
     val decoder     = decoders(index)
@@ -120,7 +120,7 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
     sratDest.currPDest.valid := allReady
     slot.prevPDest           := sratDest.prevPDest
     slot.currPDest           := freeList.io.pop(freeListPopIndex).bits.pRegIdx
-    slot.robIdx              := io.in.robIdx + (index.U)
+    slot.robIdx              := io.in.enqRobPtr + (index.U)
   }
 
   val validIOSlots = io.in.fromIBuffer.zipWithIndex.map {

@@ -5,6 +5,7 @@ import utility._
 import chisel3._
 import chisel3.util._
 import core.cache._
+import utils._
 
 case object SoCParamsKey extends Field[SoCParameters]
 
@@ -69,6 +70,9 @@ trait HasMyParams {
   val basicBpuIdxWidth = 6
   val HasHExtension    = false
 
+  val loadPipeNum  = 2
+  val storePipeNum = 2
+
   val IcachRoads       = 2
   val retAddrStackSize = 8
   val storeQSize       = 8
@@ -79,7 +83,6 @@ trait HasMyParams {
   val excCodeWidth = 5
   val PAddrBits    = 32
   val VAddrBits    = 39
-  val tagWidth     = VAddrBits - 12
   require(IcachLineBytes == 64 || IcachLineBytes == 32)
   val IcacheOffsetWidth = log2Ceil(IcachLineBytes)
   val instrWidth        = 32
@@ -122,6 +125,8 @@ trait HasMyParams {
   val robIndexWidth = log2Up(robNum)
   val freeListSize  = 32
 
+  val aluNum = 3
+
   object ARegIdx {
     def apply() = UInt(aRegAddrWidth.W)
   }
@@ -145,23 +150,7 @@ trait HasMyParams {
 
   val verilator = true
 
-  def UInt8()  = UInt(8.W)
-  def UInt16() = UInt(16.W)
-  def UInt32() = UInt(32.W)
-  def UInt64() = UInt(64.W)
-
-  object UWord {
-    def apply() = UInt(XLEN.W)
-    def toUInt8s(uword: UInt) = {
-      require(uword.getWidth == XLEN)
-      (0 until XLEN / 8).map(i => uword((i + 1) * 8 - 1, i * 8))
-    }
-    def toVec(inUInt: UInt)(implicit p: Parameters): Vec[UInt] = {
-      val XLEN    = p(CoreParamsKey).XLEN
-      val inWidth = inUInt.getWidth
-      require(inWidth % XLEN == 0)
-      require(inWidth > XLEN)
-      VecInit((0 until inWidth / XLEN).map(i => inUInt((i + 1) * XLEN - 1, i * XLEN)))
-    }
+  object UWord extends UIntLen {
+    override val len = XLEN
   }
 }

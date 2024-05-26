@@ -6,6 +6,7 @@ import org.chipsalliance.cde.config._
 import core.cache._
 import macros.decode._
 import utility._
+import utils._
 
 /*==================== BASIC BUNDLE ====================*/
 class BasicExInfoBundle(implicit p: Parameters) extends CoreBundle {
@@ -152,7 +153,7 @@ class RobPtr(implicit p: Parameters)
     with HasCircularQueuePtrHelper
 
 object RobPtr {
-  def apply()(implicit p: Parameters) = new RobPtr
+  def apply()(implicit p: Parameters) = new RobPtr()
   def apply(f: Bool, v: UInt)(implicit p: Parameters): RobPtr = {
     val ptr = Wire(RobPtr())
     ptr.flag  := f
@@ -161,6 +162,19 @@ object RobPtr {
   }
 }
 
+class FreeListPtr(implicit p: Parameters)
+    extends CircularQueuePtr[FreeListPtr](p => (new CoreDelegate()(p) {}).pRegNum)
+    with HasCircularQueuePtrHelper
+
+object FreeListPtr {
+  def apply()(implicit p: Parameters) = new FreeListPtr()
+  def apply(f: Bool, v: UInt)(implicit p: Parameters): FreeListPtr = {
+    val ptr = Wire(FreeListPtr())
+    ptr.flag  := f
+    ptr.value := v
+    ptr
+  }
+}
 @DecodeMacro
 class DecodeInstInfoBundle extends DCBundle {
   val src1From = Src1From()
@@ -264,12 +278,19 @@ object FrontRedirct {
 }
 
 class Redirect()(implicit p: Parameters) extends FrontRedirct {
-  val robPtr = new RobPtr
+  val robPtr      = new RobPtr
+  val onlyBackend = Bool()
 }
 
 object Redirect {
-  def output()(implicit p: Parameters) = Valid(new Redirect)
-  def input()(implicit p:  Parameters) = Flipped(Valid(new Redirect))
+  def output()(implicit p: Parameters) = Valid(new Redirect())
+  def input()(implicit p:  Parameters) = Flipped(output())
+  def merge(rds: Valid[Redirect]*)(implicit p: Parameters) = {
+    val ret = Valid(new Redirect)
+    ret.valid := ParallelOR(rds.map(_.valid))
+    ret.bits  := ParallelPriorityMux(rds.map(r => (r.valid, r.bits)))
+    ret
+  }
 }
 
 /**
@@ -322,7 +343,7 @@ class ReadOpStageOutIO()(implicit p: Parameters) extends CoreBundle {
   val destPregAddr = Output(UInt(pRegAddrWidth.W))
   val destAregAddr = Output(ARegIdx())
   val prevPDest    = Output(PRegIdx())
-  val prevData     = Output(UInt32)
+  val prevData     = Output(UInt32())
   val debugHW      = DebugHW()
   val srcData      = Vec(2, Output(UInt(XLEN.W)))
 }

@@ -6,9 +6,9 @@ import org.chipsalliance.cde.config._
 import core._
 import core.cache._
 import core.mmu._
-import core.RedirectLevel
-import utility.ParallelOR
-import utility.ParallelPriorityMux
+import utility._
+import utils._
+import dram._
 
 class PreIfOutIO(implicit p: Parameters) extends CoreBundle {
   val npc         = Output(UInt(VAddrBits.W))
@@ -19,7 +19,7 @@ class PreIfOutIO(implicit p: Parameters) extends CoreBundle {
 //should be fast, because in one cycle
 class IfStage1ToPreIf(implicit p: Parameters) extends CoreBundle {
   val pcVal      = Output(UInt(VAddrBits.W))
-  val predictRes = Output(Valid(UInt32))
+  val predictRes = Output(Valid(UInt32()))
 }
 
 //can be slow, register will stage them
@@ -29,11 +29,11 @@ class IfStage1OutIO(implicit p: Parameters) extends CoreBundle {
   val bpuOut         = Vec(fetchNum, Output(new PredictResultBundle))
   val bCacheHit      = Input(Vec(fetchNum, Bool()))
   val pcVal          = Output(UInt(VAddrBits.W))
-  val tagOfInstGroup = Output(UInt(tagWidth.W))
+  val tagOfInstGroup = Output(UInt(12.W))
   val isUncached     = Output(Bool())
   val exception      = Output(FrontExcCode())
   val iCache         = new CacheStage1OutIO(IcachRoads, IcachLineBytes / 4, false)
-  val bCacheDst      = Output(Valid(UInt32))
+  val bCacheDst      = Output(Valid(UInt32()))
   val tlbResp        = Valid(new TlbResp)
 }
 
@@ -45,4 +45,11 @@ class IfStage2OutIO(implicit p: Parameters) extends CoreBundle {
   val validMask     = Vec(fetchNum, Bool())
   val exception     = FrontExcCode()
   val redirect      = FrontRedirct.output()
+}
+
+class FrontBackIO(implicit p: Parameters) extends CoreBundle {
+  val redirect     = FrontRedirct.input()
+  val instructions = Vec(renameNum, Decoupled(new InstBufferOutIO))
+  val ptw          = new TlbPtwIO()
+  val bpuUpdateIn  = Flipped(new BpuUpdateIO)
 }
