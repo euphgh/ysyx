@@ -12,9 +12,6 @@ import org.chipsalliance.cde.config._
 // package object mem {
 trait HasMemHelper extends HasMyParams {
 
-  val loadPipeNum  = 2
-  val storePipeNum = 2
-
   abstract class AddrHelper {
     val nWays       = 4
     val nBytes      = 64
@@ -33,6 +30,8 @@ trait HasMemHelper extends HasMyParams {
     override val nBytes      = 64
     override val offsetWidth = log2Ceil(nBytes)
     override val indexWidth  = 12 - offsetWidth
+
+    val nSets = math.pow(2, indexWidth).toInt
   }
 
   object WBufferHelper extends AddrHelper {
@@ -51,7 +50,7 @@ abstract class MemDelegate(implicit p: Parameters) extends CoreDelegate with Has
 class DCacheRIO(implicit p: Parameters) extends MemBundle {
   import DCacheHelper._
   val req  = Decoupled(UInt(indexWidth.W))
-  val resp = Vec(nWays, new DCacheResp())
+  val resp = Vec(nWays, new DCacheResp()) // valid is for write update
 }
 
 /* Refill data to DCache */
@@ -61,29 +60,49 @@ class RefillIO(implicit p: Parameters) extends MemBundle {
     import DCacheHelper._
     val index = UInt(indexWidth.W)
     val wdata = new DCacheResp()
-    val wmask = UInt(nWays.W) // way mask
+    val wWay  = UInt(nWays.W) // way mask
   })
+  val busy = Bool()
+}
+
+class DCacheHitIO(implicit p: Parameters) extends MemBundle {
+  import DCacheHelper._
+  val setIdx = UInt(indexWidth.W)
+  val way    = Valid(UInt(nWays.W))
+}
+
+class RefillByPass(implicit p: Parameters) extends MemBundle {
+  import DCacheHelper._
+  val paddr = UInt(PAddrBits.W) // align for cache line
+  val datas = Vec(nBytes / XBYTE, UWord())
 }
 
 // MMIO的load和Store + Store的不命中均可以使用
-class LoadMissIO(implicit p: Parameters) extends MemBundle {
+class MemMissIO(implicit p: Parameters) extends MemBundle {
   val req = Decoupled(new Bundle {
     val paddr = UInt(PAddrBits.W)
     val write = Bool()
-    val mask  = Vec((XBYTE), Bool())
+    val mask  = Vec(XBYTE, Bool())
     val mmio  = Bool()
+    val wdata = UWord()
   })
-  val resp = Flipped(Valid(Vec((XBYTE), UInt8())))
+  val resp = Flipped(Valid(UWord()))
 }
 
 object DCacheLineStatu extends ChiselEnum {
-  val none, valid, dirty = Value
+  val none, clean, dirty = Value
 }
 class DCacheMeta(implicit p: Parameters) extends MemBundle {
   import DCacheHelper._
 
   val tag   = UInt((PAddrBits - indexWidth - offsetWidth).W)
   val statu = DCacheLineStatu()
+
+  def dirty(that: DCacheMeta): DCacheMeta = {
+    val ret = Wire(that)
+    ret.statu := DCacheLineStatu.dirty
+    ret
+  }
 }
 class DCacheResp(implicit p: Parameters) extends MemBundle {
   import DCacheHelper._

@@ -11,25 +11,32 @@ import org.chipsalliance.cde.config._
 
 class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemHelper {
   class LoadPipeIO() extends FuBaseIO() {
-    val refill = Flipped(new RefillIO())
+    val refill = Flipped(Valid(new RefillByPass())) // used for pipeline
     val tlb = new Bundle {
       val ptw     = Flipped(new TlbPtwIO())
       val replace = Flipped(new TlbReplaceIO())
     }
+
+    val dcache = new DCacheRIO
     /* copy from wbuffer */
     val wbuffer = new Bundle {
       val r     = new WBufferLoadIO()
       val order = new WBufferOrderIO()
     }
     val pmpUpdate    = new PMPUpdateIO()
-    val loadMiss     = new LoadMissIO()
+    val loadMiss     = new MemMissIO()
     val oldestRobPtr = RobPtr()
   }
 
-  override val io = IO(new LoadPipeIO())
+  def refillHit(paddr: UInt) = {
+    import DCacheHelper._
+    val ret         = Valid(UWord())
+    val refillPaddr = io.refill.bits.paddr
+    ret.valid := getTag(paddr) === getTag(refillPaddr) && getIndex(paddr) === getIndex(refillPaddr) && io.refill.valid
+    ret.bits  := io.refill.bits.datas(getXLEN(paddr))
+  }
 
-  val dcache = new DCacheMain()
-  dcache.refill <> io.refill
+  override val io = IO(new LoadPipeIO())
 
   val tlb = TLB()
   tlb.ptw <> io.tlb.ptw
@@ -55,18 +62,22 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     Connect.byType(out.bits, in.bits)
     Connect.decoupled(out, in)
 
-    out.bits.vaddr     := in.bits.srcs(0) + in.bits.srcs(1)
-    dcache.r.req.bits  := DCacheHelper.getIndex(out.bits.vaddr)
-    dcache.r.req.valid := in.valid
+    out.bits.vaddr      := in.bits.srcs(0) + in.bits.srcs(1)
+    io.dcache.req.bits  := DCacheHelper.getIndex(out.bits.vaddr)
+    io.dcache.req.valid := in.valid
 
     val tlbReq = Decoupled(TlbReq.load(out.bits.vaddr, out.bits.fuOp, out.bits.debugHW))
     tlbReq.valid := in.valid
 
-    out.valid := tlbReq.ready && dcache.r.req.ready
+    out.valid := tlbReq.ready && io.dcache.req.ready
   }
   // override for ReadOpStage PipeConnect
   override val s0OutFire = s0.out.fire
 
+  class S1RefillByPass extends MemBundle {
+    val tag  = UInt(DCacheHelper.pTagWidth.W)
+    val data = UWord()
+  }
   /* search tlb, send paddr to wbuffer, no matter exception */
   val s1 = new MemDelegate {
     val out = Decoupled(new MicroOp {
@@ -75,8 +86,9 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
       val data  = Vec(nWays, UWord())
       val rmask = Vec(XBYTE, Bool())
 
-      val tlbResp   = new TlbResp
-      val tlb2ndReq = new TlbReq
+      val refill    = Valid(new S1RefillByPass())
+      val tlbResp   = new TlbResp()
+      val tlb2ndReq = new TlbReq()
     })
 
     val in = PipelineNext(s0.out, out.fire, io.redirect.valid)
@@ -87,21 +99,43 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
 
     AssertWhen(in.valid, tlb.requestor.resp.valid)
 
-    out.bits.meta := dcache.r.resp.map(_.meta)
-    AssertWhen(in.valid, dcache.r.resp.head.debugIndex === DCacheHelper.getIndex(in.bits.vaddr))
+    out.bits.meta := io.dcache.resp.map(_.meta)
+    AssertWhen(in.valid, io.dcache.resp.head.debugIndex === DCacheHelper.getIndex(in.bits.vaddr))
 
     val wordOff = DCacheHelper.getXLEN(in.bits.vaddr)
     out.bits.data.zipWithIndex.foreach {
       case (data, index) =>
-        val wordVec = UWord.toVec(dcache.r.resp(index).data)
+        val wordVec = UWord.toVec(io.dcache.resp(index).data)
         data := wordVec(wordOff)
     }
 
     out.bits.tlb2ndReq := TlbReq.load(in.bits.vaddr, in.bits.fuOp, in.bits.debugHW)
 
     out.bits.rmask := MemType.mask(in.bits.fuOp, in.bits.vaddr(2, 0))
+
+    def refillMatch(refillIn: Valid[RefillByPass]) = {
+      import DCacheHelper._
+      val ret = Valid(new S1RefillByPass())
+      ret.valid     := refillIn.valid && getIndex(refillIn.bits.paddr) === getIndex(in.bits.vaddr)
+      ret.bits.tag  := getTag(refillIn.bits.paddr)
+      ret.bits.data := refillIn.bits.datas(getXLEN(in.bits.vaddr))
+      ret
+    }
+
+    val refillNext = Reg(Valid(new S1RefillByPass()))
+    val refillWire = Mux(io.refill.valid, refillMatch(io.refill), refillNext)
+
+    when(in.valid && io.refill.valid) {
+      refillNext := refillMatch(io.refill)
+    }
+    when(out.fire || io.redirect.valid) {
+      refillNext.valid := false.B
+    }
+
+    out.bits.refill := refillWire
   }
 
+  // refill用于替换读出的CacheLine，只需判断Index是否相同
   val s2 = new MemDelegate {
     val out = Decoupled(new MicroOp {
       val paddr = UInt(PAddrBits.W)
@@ -112,6 +146,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
       }
       val wbufferResp = new WBufferLoadRespIO()
       val pmp         = new PMPRespIO
+      val refillData  = Valid(UWord())
     })
     val in = PipelineNext(s1.out, out.fire, io.redirect.valid)
     Connect.byType(out.bits, in.bits)
@@ -213,7 +248,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     }
     when(state === loadMissResp && io.loadMiss.resp.fire) {
       state   := loadMissResp
-      extData := io.loadMiss.resp.bits.asUInt
+      extData := io.loadMiss.resp.bits
     }
     when(out.fire || io.redirect.valid) {
       state := idle
@@ -226,7 +261,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
 
     val s2Data = VecInit(in.bits.wbufferResp.hits.zipWithIndex.map {
       case (hit, index) =>
-        Mux(hit, in.bits.wbufferResp.datas(index), UWord.toUInt8s(in.bits.dCacheResp.datas)(index))
+        Mux(hit, in.bits.wbufferResp.datas(index), UInt8.toVec(in.bits.dCacheResp.datas)(index))
     }).asUInt
 
     val finalData = Mux(state === loadMissBack, extData, s2Data)

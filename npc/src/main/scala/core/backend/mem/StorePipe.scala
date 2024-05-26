@@ -22,7 +22,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
     }
 
     val pmpUpdate    = new PMPUpdateIO()
-    val loadMiss     = new LoadMissIO()
+    val loadMiss     = new MemMissIO()
     val oldestRobPtr = RobPtr()
   }
   override val io = IO(new StorePipeIO())
@@ -166,7 +166,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
     io.wbuffer.w.req.valid      := in.valid && isWBuffer
     io.wbuffer.w.req.bits.paddr := in.bits.paddr
     io.wbuffer.w.req.bits.wmask := in.bits.wmask
-    io.wbuffer.w.req.bits.datas := UWord.toUInt8s(in.bits.wdata)
+    io.wbuffer.w.req.bits.datas := UInt8.toVec(in.bits.wdata)
     val wbufferFire = io.wbuffer.w.req.fire || wbufferBack
 
     in.valid := in.valid && (isExcpt || Mux(isMMIO, state === loadMissBack, wbufferFire))

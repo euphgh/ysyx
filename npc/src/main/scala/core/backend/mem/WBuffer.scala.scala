@@ -9,7 +9,6 @@ import core.mmu._
 import core.backend._
 import org.chipsalliance.cde.config._
 import chisel3.experimental.conversions._
-import freechips.rocketchip.tile.XLen
 
 class WBufferLoadRespIO(implicit p: Parameters) extends MemBundle {
   val datas = Vec((XBYTE), UInt8())
@@ -50,6 +49,7 @@ class WBufferWBackIO()(implicit p: Parameters) extends MemBundle {
   val req = Decoupled(new Bundle {
     val datas = Vec(nBytes, UInt8())
     val wmask = Vec(nBytes, Bool())
+    val paddr = UInt(PAddrBits.W)
   })
   val resp = Flipped(Valid(UInt(0.W)))
 }
