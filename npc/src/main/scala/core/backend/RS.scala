@@ -21,13 +21,21 @@ class ReservationStationIO(outNum: Int)(implicit p: Parameters) extends CoreBund
 }
 
 class InOrderReservationStation(rsSize: Int, outNum: Int)(implicit p: Parameters) extends CoreDelegate {
-  val io = Wire(new ReservationStationIO(outNum))
+  val io        = Wire(new ReservationStationIO(outNum))
+  val wSratPIdx = io.in.wSratPIdx
 
   val queue = new BaseMultiPortBuffer(renameNum, outNum, rsSize, new MicroOp) {
-    buffer(deqPtrVec(0))
-    buffer(deqPtrVec(1))
-    buffer(deqPtrVec(outNum))
-    override val numDeq: UInt = ???
+    val deqDones = deqPtrVec.map(ptr => buffer(ptr.value).pRegsMeta.map(_.inPrf).reduce(_ && _))
+    override val numDeq: UInt = PriorityCount(deqDones)
+
+    buffer.foreach { item =>
+      item.pRegsMeta.foreach { pRegMeta =>
+        val vec = VecInit(wSratPIdx.map(wb => wb.valid && wb.bits === pRegMeta.pIdx)).asUInt
+        when(vec.orR) {
+          pRegMeta.inPrf := true.B
+        }
+      }
+    }
   }
 
   queue.io.flush <> io.flush
