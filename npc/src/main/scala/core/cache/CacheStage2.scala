@@ -47,7 +47,7 @@ class CacheStage2[T <: Data](
   val wordNum = lineBytes / 4
   val io = IO(new Bundle {
     val in = Flipped(Decoupled(new Bundle {
-      val ptag       = UInt(tagWidth.W)
+      val ptag       = UInt(12.W)
       val isUncached = Bool()
       val fromStage1 = new CacheStage1OutIO(roads, wordNum, isDcache)
       val cancel     = Bool() // find in SQ or has Exception
@@ -55,8 +55,8 @@ class CacheStage2[T <: Data](
     }))
     val out = Decoupled(new Bundle {
       val toUser = Output(Vec(fetchNum, userGen))
-      val idata  = if (!isDcache) Some(Output(Vec(fetchNum, UInt32))) else None
-      val ddata  = if (isDcache) Some(Output(UInt32)) else None
+      val idata  = if (!isDcache) Some(Output(Vec(fetchNum, UInt32()))) else None
+      val ddata  = if (isDcache) Some(Output(UInt32())) else None
     })
     val dram = new DramIO
   })
@@ -95,8 +95,8 @@ class CacheStage2[T <: Data](
       })
     )
   }
-  val readDdata    = if (isDcache) Some(Wire(Vec(roads, UInt32))) else None
-  val readDataline = if (isDcache) Some(Wire(Vec(roads, Vec(wordNum, UInt32)))) else None
+  val readDdata    = if (isDcache) Some(Wire(Vec(roads, UInt32()))) else None
+  val readDataline = if (isDcache) Some(Wire(Vec(roads, Vec(wordNum, UInt32())))) else None
   // HIT Logic =================================================================
   val hitMask = VecInit((0 until roads).map(i => {
     val meta = stage1.meta(i)
@@ -138,15 +138,15 @@ class CacheStage2[T <: Data](
   val writeState   = RegInit(wIdel)
   val ucState      = RegInit(ucIdel)
   val instrState   = RegInit(instrIdle)
-  val lastWdLine   = Reg(Vec(wordNum, UInt32))
-  val lastWdWord   = Reg(UInt32)
-  val wbBuffer     = Reg(Vec(wordNum, UInt32))
-  val wbAddr       = Reg(UInt32)
-  val readBuffer   = Reg(Vec(wordNum, UInt32))
+  val lastWdLine   = Reg(Vec(wordNum, UInt32()))
+  val lastWdWord   = Reg(UInt32())
+  val wbBuffer     = Reg(Vec(wordNum, UInt32()))
+  val wbAddr       = Reg(UInt32())
+  val readBuffer   = Reg(Vec(wordNum, UInt32()))
   val readCounter  = Counter(wordNum)
   val writeCounter = Counter(wordNum)
-  val r1data       = Wire(Vec(roads, new DPReadBus(Vec(wordNum, UInt32), lineNum)))
-  val w1data       = Wire(Vec(roads, new DPWriteBus(Vec(wordNum, UInt32), lineNum)))
+  val r1data       = Wire(Vec(roads, new DPReadBus(Vec(wordNum, UInt32()), lineNum)))
+  val w1data       = Wire(Vec(roads, new DPWriteBus(Vec(wordNum, UInt32()), lineNum)))
   val w1offset     = Wire(UInt(cOffWid.W))
   val w1Mask       = Wire(UInt(4.W))
   val w1meta       = Wire(Vec(roads, new DPWriteBus(new CacheMeta(isDcache), lineNum)))
@@ -158,13 +158,14 @@ class CacheStage2[T <: Data](
       ).asUInt
     else 0.U(roads.W)
   val newLine    = WireInit(0.U((dataWidth * wordNum).W)) //init
-  val newLineVec = WireInit(VecInit.fill(wordNum)((0.U.asTypeOf(UInt32))))
+  val newLineVec = WireInit(VecInit.fill(wordNum)((0.U.asTypeOf(UInt32()))))
   if (isDcache) {
     val wordSel = lowAddr.offset >> 2
     val oldWord = Mux(mainState === refill, readBuffer(wordSel), Mux1H(hitMask, readDdata.get))
     val oldLine = Mux(mainState === refill, readBuffer, Mux1H(hitMask, readDataline.get))
     import BytesWordUtils._
-    val newWord = maskWord(dreq.wWord, dreq.wStrb).asUInt | maskWord(oldWord, ~dreq.wStrb).asUInt
+    val newWord =
+      maskWord(UInt8.toVec(dreq.wWord), dreq.wStrb).asUInt | maskWord(UInt8.toVec(oldWord), ~dreq.wStrb).asUInt
     asg(
       newLine,
       LookupUInt(

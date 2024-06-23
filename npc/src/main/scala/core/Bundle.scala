@@ -9,15 +9,9 @@ import utility._
 import utils._
 
 /*==================== BASIC BUNDLE ====================*/
-class BasicExInfoBundle(implicit p: Parameters) extends CoreBundle {
-  val pc   = Output(UInt(VAddrBits.W))
-  val isBd = Output(Bool())
-}
-
-class ExCommitBundle(implicit p: Parameters) extends CoreBundle {
-  val basic    = new BasicExInfoBundle()
-  val excptVec = ExceptionVec()
-  val badVaddr = Output(UInt(VAddrBits.W))
+class ExceptIO(implicit p: Parameters) extends CoreBundle {
+  val pc  = UInt(VAddrBits.W)
+  val vec = ExceptionVec()
 }
 
 //bpu info for per inst
@@ -102,7 +96,7 @@ object DebugHW {
 
 }
 
-class WbRobBundle(implicit p: Parameters) extends CoreBundle {
+class WbRobIO(implicit p: Parameters) extends CoreBundle {
   val robIdx       = Output(UInt(robIndexWidth.W))
   val excptVec     = ExceptionVec()
   val isMispredict = Output(Bool())
@@ -229,7 +223,6 @@ class RobSavedUop(implicit p: Parameters) extends CoreBundle {
   val prevPDest = PRegIdx() // free when retire
   val currPDest = PRegIdx() // updata A-RAT when retire
   val currADest = ARegIdx() // updata A-RAT when retire
-  val isSingle  = Bool()
 }
 
 class DestRegMeta(implicit p: Parameters) extends CoreBundle {
@@ -240,6 +233,9 @@ class DestRegMeta(implicit p: Parameters) extends CoreBundle {
 
 class DispatchToRobIO(implicit p: Parameters) extends CoreBundle {
   val destRegMeta = new DestRegMeta
+  val fuType      = FuType()
+  val fuOp        = FuOpType()
+  val except      = new ExceptIO
 }
 
 class RATWriteBackIO(implicit p: Parameters) extends CoreBundle {
@@ -309,7 +305,7 @@ object Redirect {
   *   destPregAddr
   */
 class FunctionUnitOutIO(implicit p: Parameters) extends CoreBundle {
-  val wbRob     = new WbRobBundle
+  val wbRob     = new WbRobIO
   val wPrf      = new WPrfBundle
   val currADest = Output(ARegIdx())
 }

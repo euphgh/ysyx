@@ -40,7 +40,6 @@ class MemProtocal(implicit p: Parameters) extends MemModule {
 
 class MissUnit(implicit p: Parameters) extends MemModule {
   val io = IO(new Bundle {
-    val busy    = Bool()
     val wbuffer = Flipped(new WBufferWBackIO)
     val misses  = Vec(3, new MemMissIO()) //must be one hot, wait until oldest
     val refill  = new RefillIO()
@@ -49,7 +48,8 @@ class MissUnit(implicit p: Parameters) extends MemModule {
       val read  = new MemReadIO()
     }
 
-    val hits = Vec(loadPipeNum, new DCacheHitIO())
+    val hits   = Vec(loadPipeNum, Flipped(new DCacheHitIO()))
+    val byPass = Flipped(Valid(new RefillByPass()))
   })
 
   import DCacheHelper._
@@ -74,7 +74,7 @@ class MissUnit(implicit p: Parameters) extends MemModule {
 
   import DCacheHelper._
   val isBusy = RegNext(io.misses.map(_.req.fire).asUInt.orR || wbReq.fire, false.B)
-  io.busy := isBusy
+  io.refill.busy := isBusy
   // load port has higher priority
   io.misses.map(_.req.ready := !isBusy)
   // wbuffer priority is lower

@@ -7,66 +7,36 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config._
 import chisel3.experimental.conversions._
+import freechips.rocketchip.util.MultiPortQueue
 
-/**
-  * allocate → writeIn - ready - select → readOp
-  *
-  * in.fromDispatcher.ready = rs not full
-  *
-  * in rename stage,we select a slot
-  *
-  * writeIn
-  *     reuse rsOutIO for port <fromDispatcher>
-  *     because the info written into Rs all need to take to FU
-  *
-  * ready
-  *     1.already rdy in renameStage
-  *     2.listen to wenPRF...next cycle the rdy bit will ↑
-  *     3.wake-up：the selected insts broadCast its destPregAddr
-  *     inte：
-  *         msAlu -> otherRS (ReadOp)<1 bubble>
-  *         mAlu<->sAlu (when "selected")<no bubble,need bypass>
-  *         abandon now:load -> otherRS (MemStage1)<2 bubble>
-  *     intra：
-  *         mAlu<->mAlu
-  *         sAlu<->sAlu
-  *         (when "selected")<no bubble,need bypass>
-  *
-  * select
-  *     use priority to select ready slot
-  *         LSU/MDU/br：not any older insts(in-order)
-  *         ALU(not br)：not any rdy&older insts(ooo)
-  *     the selected insts broadCast its destPregAddr ,and will leave RS the next cycle  when fire()
-  *
-  * out
-  *     RS keep the info that the insts will use in the FU
-  *     decoded：srcAreg used in RO,uOps used in EXE,destAreg for s-rat update
-  *     exception：record exception happended in FU,need write to ROB
-  *     predictRes：br need it to detect mispredict in EXE
-  *
-  *     use sEntry(psrc+valid) in RO,use pDest in WB
-  *     use robIndex in WB
-  */
-
-class FooPtr(implicit p: Parameters) extends CoreBundle {
-  val foo = new RobPtr
-}
-class RS(rsSize: Int, outNum: Int)(implicit p: Parameters) extends CoreModule {
-  val io = IO(new Bundle {
-    val flush = Input(Bool())
-    val in = new Bundle {
-      val fromDispatcher = Vec(renameNum, Flipped(DecoupledIO(new MicroOp)))
-      val wSratPIdx      = Vec(wBNum, Flipped(Valid(PRegIdx())))
-      val oldestRobIdx   = Input(RobPtr())
-      val stqEmpty       = Input(Bool())
-    }
-    val out = Vec(outNum, DecoupledIO(new MicroOp))
-  })
-
-  def MuxOneHotDefault[T <: Data](oneHot: Seq[Bool], data: Seq[T], default: T) = {
-    val useDefault = !oneHot.asUInt.orR
-    ParallelMux(oneHot.appended(useDefault), data.appended(default))
+class ReservationStationIO(outNum: Int)(implicit p: Parameters) extends CoreBundle {
+  val flush = Input(Bool())
+  val in = new Bundle {
+    val fromDispatcher = Vec(renameNum, Flipped(DecoupledIO(new MicroOp)))
+    val wSratPIdx      = Vec(wBNum, Flipped(Valid(PRegIdx())))
+    val oldestRobIdx   = Input(RobPtr())
+    val stqEmpty       = Input(Bool())
   }
+  val out = Vec(outNum, DecoupledIO(new MicroOp))
+}
+
+class InOrderReservationStation(rsSize: Int, outNum: Int)(implicit p: Parameters) extends CoreDelegate {
+  val io = Wire(new ReservationStationIO(outNum))
+
+  val queue = new BaseMultiPortBuffer(renameNum, outNum, rsSize, new MicroOp) {
+    buffer(deqPtrVec(0))
+    buffer(deqPtrVec(1))
+    buffer(deqPtrVec(outNum))
+    override val numDeq: UInt = ???
+  }
+
+  queue.io.flush <> io.flush
+  queue.io.in <> io.in.fromDispatcher
+  queue.io.out <> io.out
+}
+
+class OutOfOrderReservationStation(rsSize: Int, outNum: Int)(implicit p: Parameters) extends CoreDelegate {
+  val io = Wire(new ReservationStationIO(outNum))
 
   val rsEntries  = Reg(Vec(rsSize, new MicroOp))
   val slotsValid = RegInit(VecInit(Seq.fill(rsSize)(false.B)))
@@ -143,5 +113,11 @@ class RS(rsSize: Int, outNum: Int)(implicit p: Parameters) extends CoreModule {
   }
   when(io.flush) {
     slotsValid.foreach(_ := false.B)
+  }
+}
+object RS {
+  def apply(rsSize: Int, outNum: Int, ooo: Boolean = true)(implicit p: Parameters) = {
+    if (ooo) (new OutOfOrderReservationStation(rsSize, outNum)).io
+    else (new InOrderReservationStation(rsSize, outNum)).io
   }
 }

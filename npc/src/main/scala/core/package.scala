@@ -156,6 +156,7 @@ package object core {
   object ExceptionVec {
     val ExceptionVecSize = 24
     def apply()          = new ExceptionVec()
+    def clear()          = 0.U.asTypeOf(new ExceptionVec)
   }
 
   object PMAMode {

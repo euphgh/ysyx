@@ -157,7 +157,7 @@ class MMUIOBaseBundle(implicit p: Parameters) extends MMUBundle {
 
 class TlbReplaceIO(implicit p: Parameters) extends MMUBundle {}
 
-class TlbIO(nRespDups: Int = 1)(implicit p: Parameters) extends MMUIOBaseBundle {
+class TlbIO(implicit p: Parameters) extends MMUIOBaseBundle {
   val requestor = Flipped(new TlbRequestIO())
   val ptw       = new TlbPtwIO()
   val replace   = new TlbReplaceIO

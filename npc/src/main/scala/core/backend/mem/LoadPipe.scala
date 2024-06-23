@@ -11,7 +11,7 @@ import org.chipsalliance.cde.config._
 
 class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemHelper {
   class LoadPipeIO() extends FuBaseIO() {
-    val refill = Flipped(Valid(new RefillByPass())) // used for pipeline
+    val byPass = Flipped(Valid(new RefillByPass())) // used for pipeline
     val tlb = new Bundle {
       val ptw     = Flipped(new TlbPtwIO())
       val replace = Flipped(new TlbReplaceIO())
@@ -26,14 +26,15 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     val pmpUpdate    = new PMPUpdateIO()
     val loadMiss     = new MemMissIO()
     val oldestRobPtr = RobPtr()
+    val hit          = new DCacheHitIO()
   }
 
   def refillHit(paddr: UInt) = {
     import DCacheHelper._
     val ret         = Valid(UWord())
-    val refillPaddr = io.refill.bits.paddr
-    ret.valid := getTag(paddr) === getTag(refillPaddr) && getIndex(paddr) === getIndex(refillPaddr) && io.refill.valid
-    ret.bits  := io.refill.bits.datas(getXLEN(paddr))
+    val refillPaddr = io.byPass.bits.paddr
+    ret.valid := getTag(paddr) === getTag(refillPaddr) && getIndex(paddr) === getIndex(refillPaddr) && io.byPass.valid
+    ret.bits  := io.byPass.bits.datas(getXLEN(paddr))
   }
 
   override val io = IO(new LoadPipeIO())
@@ -60,7 +61,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
       val vaddr = UInt(VAddrBits.W)
     })
     Connect.byType(out.bits, in.bits)
-    Connect.decoupled(out, in)
+    Connect.pipeReadyValid(out, in)
 
     out.bits.vaddr      := in.bits.srcs(0) + in.bits.srcs(1)
     io.dcache.req.bits  := DCacheHelper.getIndex(out.bits.vaddr)
@@ -93,7 +94,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
 
     val in = PipelineNext(s0.out, out.fire, io.redirect.valid)
     Connect.byType(out.bits, in.bits)
-    Connect.decoupled(out, in)
+    Connect.pipeReadyValid(out, in)
 
     out.bits.tlbResp := HoldUnless(tlb.requestor.resp.bits, in.valid)
 
@@ -123,10 +124,10 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     }
 
     val refillNext = Reg(Valid(new S1RefillByPass()))
-    val refillWire = Mux(io.refill.valid, refillMatch(io.refill), refillNext)
+    val refillWire = Mux(io.byPass.valid, refillMatch(io.byPass), refillNext)
 
-    when(in.valid && io.refill.valid) {
-      refillNext := refillMatch(io.refill)
+    when(in.valid && io.byPass.valid) {
+      refillNext := refillMatch(io.byPass)
     }
     when(out.fire || io.redirect.valid) {
       refillNext.valid := false.B
@@ -150,7 +151,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     })
     val in = PipelineNext(s1.out, out.fire, io.redirect.valid)
     Connect.byType(out.bits, in.bits)
-    Connect.decoupled(out, in)
+    Connect.pipeReadyValid(out, in)
 
     val tlbAutomata = new MemDelegate {
       val hit1st :: waitHitResp :: hit2nd :: Nil = Enum(4)
@@ -226,7 +227,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     })
     val in = PipelineNext(s2.out, out.fire, io.redirect.valid)
     Connect.byType(out.bits, in.bits)
-    Connect.decoupled(out, in)
+    Connect.pipeReadyValid(out, in)
     out.bits.excptVec.accessFault(in.bits.pmp)
 
     val dataMiss = !in.bits.dCacheResp.hit && in.bits.wbufferResp.hits === in.bits.rmask

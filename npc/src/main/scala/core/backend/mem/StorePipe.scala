@@ -45,7 +45,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
       val wdata = UWord()
     })
     Connect.byType(out.bits, in.bits)
-    Connect.decoupled(out, in)
+    Connect.pipeReadyValid(out, in)
 
     out.bits.vaddr := in.bits.srcs(0) + in.bits.srcs(1)
 
@@ -70,7 +70,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
 
     val in = PipelineNext(s0.out, out.fire, io.redirect.valid)
     Connect.byType(out.bits, in.bits)
-    Connect.decoupled(out, in)
+    Connect.pipeReadyValid(out, in)
 
     out.bits.tlbResp := HoldUnless(tlb.requestor.resp.bits, in.valid)
     AssertWhen(in.valid, tlb.requestor.resp.valid)
@@ -87,7 +87,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
     })
     val in = PipelineNext(s1.out, out.fire, io.redirect.valid)
     Connect.byType(out.bits, in.bits)
-    Connect.decoupled(out, in)
+    Connect.pipeReadyValid(out, in)
 
     val tlbAutomata = new MemDelegate {
       val hit1st :: waitHitResp :: hit2nd :: Nil = Enum(4)
@@ -136,7 +136,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
     })
     val in = PipelineNext(s2.out, out.fire, io.redirect.valid)
     Connect.byType(out.bits, in.bits)
-    Connect.decoupled(out, in)
+    Connect.pipeReadyValid(out, in)
 
     out.bits.excptVec.accessFault(in.bits.pmp)
     val isExcpt   = out.bits.excptVec.hasException()

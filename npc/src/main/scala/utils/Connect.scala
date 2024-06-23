@@ -96,7 +96,13 @@ object Connect {
     }
   }
 
-  def decoupled[T <: Data, S <: Data](in: DecoupledIO[T], out: DecoupledIO[S]) = {
+  def decoupled[S <: Data, D <: Data](dest: DecoupledIO[D], src: DecoupledIO[S], assign: (D, S) => Unit) = {
+    dest.valid := src.valid
+    src.ready  := dest.ready
+    assign(dest.bits, src.bits)
+  }
+
+  def pipeReadyValid[T <: Data, S <: Data](in: DecoupledIO[T], out: DecoupledIO[S]) = {
     out.valid := in.valid
     in.ready  := out.fire || !in.valid
   }

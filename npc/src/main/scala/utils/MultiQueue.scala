@@ -140,7 +140,7 @@ class BaseMultiPortBuffer[D <: Data](
 
   val bufferSize = ptrGen.entries
 
-  val buffer = VecMem(bufferSize, dataGen)
+  val buffer = Vec(bufferSize, Reg(dataGen))
 
   // Bypass wire
   private val bypassEntries = WireDefault(VecInit.fill(deqWidth)(0.U.asTypeOf(Valid(dataGen))))
@@ -206,11 +206,11 @@ class BaseMultiPortBuffer[D <: Data](
     val isOld  = i.U < numValidOnly
     val oldIdx = i.U + numFireOut
 
-    val isDeq   = i.U < validEntries + numValidOnly
+    val isDeq   = i.U < numDeq + numValidOnly
     val deqIdx  = i.U - numValidOnly
-    val deqData = buffer.read(deqPtrVec(deqIdx).value)
+    val deqData = buffer(deqPtrVec(deqIdx).value)
 
-    val bypIdx  = i.U - numValidOnly - validEntries
+    val bypIdx  = i.U - numValidOnly - numDeq
     val bypData = io.in(bypIdx)
 
     out(i).bits  := Mux(isOld, out(oldIdx).bits, Mux(isDeq, deqData, bypData.bits))
@@ -232,7 +232,7 @@ class BaseMultiPortBuffer[D <: Data](
 
     val needEnqWhenByPass = enqOffset(i) >= byPassNum
     when(io.in(i).fire && Mux(useBypass, needEnqWhenByPass, true.B)) {
-      buffer.write(wAddr, io.in(i).bits)
+      buffer(wAddr) := io.in(i).bits
     }
   }
 

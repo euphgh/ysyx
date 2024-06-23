@@ -47,16 +47,11 @@ case class CoreParams(
 case object DebugOptionsKey extends Field[DebugOptions]
 
 case class DebugOptions(
-  FPGAPlatform:     Boolean = false,
-  EnableDifftest:   Boolean = false,
-  AlwaysBasicDiff:  Boolean = true,
-  EnableDebug:      Boolean = false,
-  EnablePerfDebug:  Boolean = true,
-  UseDRAMSim:       Boolean = false,
-  EnableConstantin: Boolean = false,
-  EnableChiselDB:   Boolean = false,
-  AlwaysBasicDB:    Boolean = true,
-  EnableRollingDB:  Boolean = false)
+  FPGAPlatform:    Boolean = false,
+  EnableDifftest:  Boolean = false,
+  AlwaysBasicDiff: Boolean = true,
+  EnableDebug:     Boolean = false,
+  EnablePerfDebug: Boolean = true)
 
 trait HasMyParams {
   implicit val p: Parameters
@@ -72,6 +67,13 @@ trait HasMyParams {
 
   val loadPipeNum  = 2
   val storePipeNum = 2
+
+  val frontPtwReqNum = 1
+  val storePtwReqNum = storePipeNum
+  val loadPtwReqNum  = loadPipeNum
+  val ptwReqNum      = loadPtwReqNum + storePtwReqNum + frontPtwReqNum
+
+  val NRPhyRegs = 64
 
   val IcachRoads       = 2
   val retAddrStackSize = 8
@@ -111,7 +113,7 @@ trait HasMyParams {
   val predictNum = 4
   val fetchNum   = 4
   val renameNum  = 3
-  val wBNum      = 3
+  val wBNum      = aluNum + 1 + loadPipeNum + storePipeNum
   val issueNum   = 4 //should be 4
   val srcRegNum  = 2
   val srcDataNum = 3

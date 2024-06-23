@@ -27,8 +27,8 @@ abstract class Divider(implicit p: Parameters) extends CoreModule {
   val sub1          = x -& y1
   val sub2          = x -& y2
   val sub3          = x -& y3
-  val quotient      = Wire(UInt32)
-  val reminder      = Wire(UInt32)
+  val quotient      = Wire(UInt32())
+  val reminder      = Wire(UInt32())
   // state
   val idle :: decode :: shift :: work :: finish :: Nil = Enum(5)
   val state                                            = RegInit(idle)

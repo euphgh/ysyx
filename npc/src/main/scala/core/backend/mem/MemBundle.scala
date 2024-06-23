@@ -67,7 +67,7 @@ class RefillIO(implicit p: Parameters) extends MemBundle {
 
 class DCacheHitIO(implicit p: Parameters) extends MemBundle {
   import DCacheHelper._
-  val setIdx = UInt(indexWidth.W)
+  val setIdx = Output(UInt(indexWidth.W))
   val way    = Valid(UInt(nWays.W))
 }
 

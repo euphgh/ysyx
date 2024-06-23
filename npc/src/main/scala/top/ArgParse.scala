@@ -45,13 +45,6 @@ object ArgParser {
           nextOption(config, tail)
         case "--config" :: confString :: tail =>
           nextOption(getConfigByName(confString), tail)
-        case "--with-dramsim3" :: tail =>
-          nextOption(
-            config.alter((site, here, up) => {
-              case DebugOptionsKey => up(DebugOptionsKey).copy(UseDRAMSim = true)
-            }),
-            tail
-          )
         case "--fpga-platform" :: tail =>
           nextOption(
             config.alter((site, here, up) => {

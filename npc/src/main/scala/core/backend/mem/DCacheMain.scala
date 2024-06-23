@@ -84,10 +84,12 @@ class DCacheMetaArray(val set: Int, val way: Int = 1, nRead: Int = 1)(implicit p
   * 刷新由流水线完成
   * @param p
   */
-class DCacheMain(implicit p: Parameters) extends MemDelegate {
+class DCacheMain(implicit p: Parameters) extends MemModule {
   import DCacheHelper._
-  val r      = Vec(loadPipeNum, Flipped(new DCacheRIO()))
-  val refill = Flipped(new RefillIO())
+  val io = IO(new Bundle {
+    val r      = Vec(loadPipeNum, Flipped(new DCacheRIO()))
+    val refill = Flipped(new RefillIO())
+  })
 
   val datas = new MulPortSRAM(Vec(nBytes, UInt8()).asUInt, nSets, nWays, loadPipeNum)
   val metas = new DCacheMetaArray(nSets, nWays, loadPipeNum)
@@ -107,19 +109,19 @@ class DCacheMain(implicit p: Parameters) extends MemDelegate {
   }
 
   val rio = Vec(loadPipeNum, new DCacheRIO())
-  r.zipWithIndex.foreach { case (r, rID) => connectR(r, rID) }
+  io.r.zipWithIndex.foreach { case (r, rID) => connectR(r, rID) }
 
-  when(refill.busy) {
-    r.map(_.req.ready := false.B)
-    connectR(refill.r, 0)
+  when(io.refill.busy) {
+    io.r.map(_.req.ready := false.B)
+    connectR(io.refill.r, 0)
   }
 
   // ====================================================
   // =========== Write Port Connect =====================
   // ====================================================
-  val wReq  = refill.w.bits
+  val wReq  = io.refill.w.bits
   val wData = VecInit.fill(nWays)(wReq.wdata.data)
   val wMeta = VecInit.fill(nWays)(wReq.wdata.meta)
-  datas.w.apply(refill.w.valid, wData, wReq.index, wReq.wWay)
-  metas.w.apply(refill.w.valid, wMeta, wReq.index, wReq.wWay)
+  datas.w.apply(io.refill.w.valid, wData, wReq.index, wReq.wWay)
+  metas.w.apply(io.refill.w.valid, wMeta, wReq.index, wReq.wWay)
 }
