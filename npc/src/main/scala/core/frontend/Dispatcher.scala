@@ -11,8 +11,8 @@ import chisel3.experimental.conversions._
 class Decoder(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
     val in = new Bundle {
-      val instr     = UInt32()
-      val exception = FrontExcCode()
+      val instr  = UInt32()
+      val excVec = new FrontExcVec()
     }
     val out = new CtrlFlow
   })
@@ -99,8 +99,8 @@ class Dispatcher(implicit p: Parameters) extends CoreModule {
     val decoder     = decoders(index)
     val slot        = slots(index)
 
-    decoder.io.in.instr     := fromIBuffer.basicInstInfo.instr
-    decoder.io.in.exception := fromIBuffer.exception
+    decoder.io.in.instr  := fromIBuffer.basicInstInfo.instr
+    decoder.io.in.excVec := fromIBuffer.excVec
 
     srat.io.src(index).zipWithIndex.foreach {
       case (rport, rindex) =>

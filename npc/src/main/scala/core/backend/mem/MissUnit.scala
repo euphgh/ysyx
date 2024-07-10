@@ -12,7 +12,7 @@ import core.dram._
 import chisel3.experimental.conversions._
 
 class MemReadIO(implicit p: Parameters) extends MemBundle {
-  import DCacheHelper._
+
   val req = Decoupled(new Bundle {
     val paddr = UInt(PAddrBits.W)
     val rmask = Vec(nBytes, Bool())
@@ -22,7 +22,7 @@ class MemReadIO(implicit p: Parameters) extends MemBundle {
   }))
 }
 class MemWriteIO(implicit p: Parameters) extends MemBundle {
-  import DCacheHelper._
+
   val req = Decoupled(new Bundle {
     val paddr = UInt(PAddrBits.W)
     val datas = Vec(nBytes, UInt8()).asUInt
@@ -32,7 +32,7 @@ class MemWriteIO(implicit p: Parameters) extends MemBundle {
 }
 
 class MemProtocal(implicit p: Parameters) extends MemModule {
-  import DCacheHelper._
+
   val write = Flipped(new MemWriteIO())
   val read  = Flipped(new MemReadIO())
   val mem   = new DramIO()
@@ -52,7 +52,6 @@ class MissUnit(implicit p: Parameters) extends MemModule {
     val byPass = Flipped(Valid(new RefillByPass()))
   })
 
-  import DCacheHelper._
   val replacer = ReplacementPolicy.fromString("setplru", nWays, nSets)
   replacer.access(io.hits.map(_.setIdx), io.hits.map(_.way))
 
@@ -72,7 +71,6 @@ class MissUnit(implicit p: Parameters) extends MemModule {
   val missWay   = RegEnable(missArb.io.chosen, missArb.io.out.fire)
   val missValid = RegNext(missArb.io.out.fire)
 
-  import DCacheHelper._
   val isBusy = RegNext(io.misses.map(_.req.fire).asUInt.orR || wbReq.fire, false.B)
   io.refill.busy := isBusy
   // load port has higher priority
@@ -212,15 +210,15 @@ class MissUnit(implicit p: Parameters) extends MemModule {
     }
 
     val wbLine =
-      RegEnable(Fill(DCacheHelper.nBytes / WBufferHelper.nBytes, wbReq.bits.datas.asUInt), io.wbuffer.req.fire)
+      RegEnable(Fill(nBytes / WBufferHelper().nBytes, wbReq.bits.datas.asUInt), io.wbuffer.req.fire)
     val wbMask = RegEnable(
       VecInit
         .tabulate(nBytes) { i =>
           // offset must align for WBuffer.nBytes
           val off = getOffset(wbPaddr)
           // or operate equal to off + WBuffer.nBytes-1
-          val inRange = off <= i.U && i.U <= (off | (WBufferHelper.nBytes - 1).U)
-          wbReq.bits.wmask(i % WBufferHelper.nBytes) && inRange
+          val inRange = off <= i.U && i.U <= (off | (WBufferHelper().nBytes - 1).U)
+          wbReq.bits.wmask(i % WBufferHelper().nBytes) && inRange
         }
         .asUInt,
       io.wbuffer.req.fire
@@ -236,14 +234,14 @@ class MissUnit(implicit p: Parameters) extends MemModule {
     when(state === hitJudge) {
 
       val wbHitVec = respLock.map { resp =>
-        resp.meta.tag === getTag(wbPaddr) && resp.meta.statu =/= DCacheLineStatu.none
+        resp.meta.tag === getTag(wbPaddr) && DCacheLineStatu.hit(resp.meta.statu)
       }.asUInt
       val wmask = VecInit.tabulate(nBytes) { i =>
         // offset must align for WBuffer.nBytes
         val off = getOffset(wbPaddr)
         // or operate equal to off + WBuffer.nBytes-1
-        val inRange = off <= i.U && i.U <= (off | (WBufferHelper.nBytes - 1).U)
-        wbReq.bits.wmask(i % WBufferHelper.nBytes) && inRange
+        val inRange = off <= i.U && i.U <= (off | (WBufferHelper().nBytes - 1).U)
+        wbReq.bits.wmask(i % WBufferHelper().nBytes) && inRange
       }
 
       // if DCache Write Hit, goto next state
@@ -291,7 +289,7 @@ class MissUnit(implicit p: Parameters) extends MemModule {
       when(ret.valid) {
         rWay := replacer.way(getIndex(missPort.paddr))
         val wdata = Valid(Mux1H(replacer.way(getIndex(missPort.paddr)), ret.bits))
-        wdata.valid := wdata.bits.meta.statu === DCacheLineStatu.dirty
+        wdata.valid := DCacheLineStatu.isDirty(wdata.bits.meta.statu)
         hif.memWR(wdata, missPort.paddr)
         state := memWR
       }

@@ -8,13 +8,21 @@ import chisel3.util._
 import org.chipsalliance.cde.config._
 import core.cache._
 import macros.decode._
+import bpu._
 
 class BtbWIO(implicit p: Parameters) extends CoreBundle {
-  val valid    = Vec(4, Bool())
-  val tagIdx   = UInt((32 - log2Ceil(IcachLineBytes)).W)
-  val instrOff = Vec(4, UInt(instrOffWidth.W))
+  val valid    = Vec(fetchNum, Bool())
+  val tagIdx   = UInt((VAddrBits - iCacheBlkPt).W)
+  val instrOff = Vec(fetchNum, UInt((iCacheBlkPt - instrPt).W))
   val brType   = Vec(fetchNum, BranchType())
   val instr    = Vec(fetchNum, UInt32())
+  def fromIf2Out(out: IfStage2OutIO) = {
+    tagIdx   := out.basicInstInfo(0).pcVal(VAddrBits - 1, iCacheBlkPt)
+    instrOff := VecInit(out.basicInstInfo.map(_.pcVal(iCacheBlkPt - 1, instrPt)))
+    brType   := out.realBrType
+    valid    := out.validMask
+    instr    := VecInit(out.basicInstInfo.map(_.instr))
+  }
 }
 
 /**
@@ -41,18 +49,19 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
   val io = IO(new Bundle {
     val in        = Flipped(Decoupled(new IfStage1OutIO))
     val out       = Decoupled(new IfStage2OutIO)
-    val btbDeq    = Decoupled(new BtbWIO)
     val backFlush = Input(Bool())
 
     val icache = new Bundle {
-      val resp = Flipped(Decoupled(new ICache.Resp))
-      val ctrl = Flipped(new ICache.Ctrl)
+      val resp   = Flipped(Decoupled(new ICache.Resp))
+      val excVec = new FrontExcVec()
     }
 
     // must in this stage, becasue it use first valid btbType
-    val rasPush = Valid(UInt32())
-    val rasPop  = Output(Bool())
-    val bCacheW = Valid(new BCacheWIO)
+    val writeBack = new Bundle {
+      val bCache = Valid(new BCacheWIO())
+      val ras = Valid(new RetAddrStack.WriteBackIO())
+      val btb = Decoupled(new BtbWIO())
+    }
   })
 
   // alias ==================================
@@ -64,41 +73,49 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
   val bCMask      = VecInit.tabulate(fetchNum)(inBits.bCacheHit(_))
   val takeMask    = VecInit.tabulate(fetchNum)(i => inBits.bpuOut(i).taken)
   val validBranch = VecInit.tabulate(fetchNum)(i => takeMask(i) && inBits.alMask(i))
+  // select by first valid branch
   def getByVB[T <: Data](x: Seq[T]) = ParallelPriorityMux(validBranch.zip(x))
 
   // BPU ==================================
   val predDst       = getByVB(bpuout.map(_.target))
   val hasBranch     = ParallelOR(validBranch) // make sure Priority can not be zero
-  val dsFetch       = !getByVB((1 until fetchNum).map(alignMask(_)) :+ false.B) && hasBranch
   val beforeBr      = getByVB(Seq("b0001".U(4.W), "b0011".U(4.W), "b0111".U(4.W), "b1111".U(4.W)))
   val bCacheHit     = getByVB(bCMask)
   val firstPredTake = VecInit(PriorityEncoderOH(validBranch))
   // Update RAS ==================================
   val firValidBtbType = getByVB(bpuout.map(_.btbType))
-  io.rasPush.valid := firValidBtbType === BtbType.push && io.out.fire && hasBranch
-  io.rasPop        := firValidBtbType === BtbType.pop && io.out.fire && hasBranch
-  io.rasPush.bits  := getByVB((0 until fetchNum).map(i => Cat((pc(XLEN - 1, 2) + i.U + 2.U), pc(1, 0))))
+  io.writeBack.ras.valid := BtbType.isRAS(firValidBtbType) && io.out.fire && hasBranch
+  io.writeBack.ras.bits.pushDst := getByVB((1 to fetchNum).map(i => pc + (i << instrPt).U))
+  io.writeBack.ras.bits.btbType := firValidBtbType
 
   def getIntrBrType(instr: UInt): ICache.UserData = {
-    require(instr.getWidth == XLEN)
+    require(instr.getWidth == VAddrBits)
     import chisel3.util.experimental.decode.QMCMinimizer
     RV64I.decode(instr, new ICache.UserData)
   }
 
+  // ===========================================================
+  // ================ io.out assign logic ======================
+  // ===========================================================
   val inValidMask = Mux(hasBranch, beforeBr & alignMask, alignMask)
-  (0 until fetchNum).foreach(i => {
+  (0 until fetchNum).foreach { i =>
     val outBasic = outBits.basicInstInfo(i)
     val inPcVal  = inBits.pcVal
-    outBasic.pcVal       := Cat(inPcVal(XLEN - 1, instrOffMsb + 1), inPcVal(instrOffMsb, instrOffLsb) + i.U, inPcVal(1, 0))
+    outBasic.pcVal := Cat(
+      inPcVal(VAddrBits - 1, iCacheBlkPt),
+      inPcVal(iCacheBlkPt - 1, instrPt) + i.U,
+      inPcVal(instrPt - 1, 0)
+    )
     outBasic.instr       := io.icache.resp.bits.data
     outBits.validMask(i) := inValidMask(i)
-  })
-  outBits.exception    := inBits.exception
+  }
+  outBits.excVec       := io.icache.excVec
+  outBits.bCacheHit    := bCacheHit
   io.out.valid         := io.icache.resp.valid
   io.icache.resp.ready := io.out.ready || !io.in.valid
 
   //predecode
-  (0 until fetchNum).foreach(i => {
+  (0 until fetchNum).foreach { i =>
     val instr = io.out.bits.basicInstInfo(i).instr
 
     val realBrType = io.icache.resp.bits.toUser(i)
@@ -106,7 +123,7 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
       assert(realBrType === getIntrBrType(instr))
     }
     outBits.realBrType(i) := realBrType
-  })
+  }
   outBits.isFirPreTake := firstPredTake
   if (verilator) {
     //TODO: fix Difftest
@@ -118,40 +135,43 @@ class IfStage2(implicit p: Parameters) extends CoreModule with BCacheHelp {
     // asg(frontPreDiff.io.en, io.out.fire)
   }
 
-  val bpuWQ = Module(new Queue(gen = new BtbWIO, entries = 2, hasFlush = false))
-  bpuWQ.io.enq.valid         := io.out.fire
-  bpuWQ.io.enq.bits.tagIdx   := outBits.basicInstInfo(0).pcVal(XLEN - 1, instrOffMsb + 1)
-  bpuWQ.io.enq.bits.instrOff := VecInit(outBits.basicInstInfo.map(_.pcVal(instrOffMsb, instrOffLsb)))
-  bpuWQ.io.enq.bits.brType   := outBits.realBrType
-  bpuWQ.io.enq.bits.valid    := outBits.validMask
-  bpuWQ.io.enq.bits.instr    := VecInit(outBits.basicInstInfo.map(_.instr))
-  io.btbDeq <> bpuWQ.io.deq
+  io.writeBack.btb <> {
+    val buffer = Module(new Queue(gen = new BtbWIO, entries = 2, hasFlush = false))
+    buffer.io.enq.valid := io.out.fire
+    buffer.io.enq.bits.fromIf2Out(outBits)
+    buffer.io.deq
+  }
 
-  val savedPreDst = Reg(UInt32())
-  val redirSet    = io.out.bits.redirect.valid
-  val redirDst    = io.out.bits.redirect.bits.target
-  val alignPC     = getAlignPC(inBits.pcVal)
-  redirSet            := false.B
-  redirDst            := DontCare
-  io.bCacheW.valid    := false.B
-  io.bCacheW.bits.pc  := DontCare
-  io.bCacheW.bits.dst := DontCare
+  // ===========================================================
+  // =========== redirect and BCache recover logic =============
+  // ===========================================================
+  // redirect assign init
+  io.out.bits.redirect       := DontCare
+  io.out.bits.redirect.valid := false.B
+  def setRedirect(pc: UInt) = {
+    io.out.bits.redirect.valid       := true.B
+    io.out.bits.redirect.bits.target := pc
+  }
+
+  // bCache recover init
+  io.writeBack.bCache       := DontCare
+  io.writeBack.bCache.valid := false.B
+  def setBCache(pc: UInt, dst: UInt = 0.U) = {
+    io.writeBack.bCache.valid    := true.B
+    io.writeBack.bCache.bits.pc  := pc
+    io.writeBack.bCache.bits.dst := dst
+  }
+
+  // redirect and BCache recover condition
   when(hasBranch && io.in.valid) {
     when(!bCacheHit) {
-      redirDst := predDst
-      redirSet := true.B
-      // Write BCache
-      io.bCacheW.valid    := true.B
-      io.bCacheW.bits.pc  := inBits.pcVal
-      io.bCacheW.bits.dst := predDst
+      setRedirect(predDst)
+      setBCache(inBits.pcVal, predDst)
     }
   }.elsewhen(io.in.valid) {
     when(inBits.bCacheDst.valid) {
-      redirDst := alignPC
-      redirSet := true.B
-      // Write BCache
-      io.bCacheW.valid   := true.B
-      io.bCacheW.bits.pc := cleanMask & inBits.pcVal
+      setRedirect(getAlignPC(inBits.pcVal))
+      setBCache(cleanMask & inBits.pcVal)
     }
   }
   if (verilator) {

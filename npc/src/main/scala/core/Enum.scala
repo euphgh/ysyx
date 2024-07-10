@@ -200,9 +200,12 @@ object BtbType extends ChiselEnum {
   val jump         = Value("b100".U)
   val push         = Value("b110".U)
   val pop          = Value("b101".U)
-  val both         = Value("b111".U)
-  def isJump(brType: BtbType.Type) = brType.asUInt(2).asBool
-  def isLink(index:  UInt)         = index === 1.U || index === 5.U
+  val both         = Value("b111".U) // first pop than push
+  def isJump(brType:  BtbType.Type) = brType.asUInt(2).asBool
+  def isLink(index:   UInt)         = index === 1.U || index === 5.U
+  def needPop(index:  BtbType.Type) = index.isOneOf(pop, both)
+  def needPush(index: BtbType.Type) = index.isOneOf(push, both)
+  def isRAS(index: BtbType.Type)    = index.isOneOf(push, pop, both)
 }
 
 object CCAttr extends ChiselEnum {
@@ -263,9 +266,3 @@ object ExcCode extends ChiselEnum {
   }
 }
 
-object FrontExcCode extends ChiselEnum {
-  val NONE, AdEL, InvalidTLBL, RefillTLBL = Value
-  def happen(code:   FrontExcCode.Type): Bool         = code =/= NONE
-  def isRefill(code: FrontExcCode.Type): Bool         = code === RefillTLBL
-  def trans(code:    FrontExcCode.Type): ExcCode.Type = Mux(code === AdEL, ExcCode.AdEL, ExcCode.TLBL)
-}

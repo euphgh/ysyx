@@ -9,7 +9,7 @@ import chisel3.util._
 import core.backend._
 import org.chipsalliance.cde.config._
 
-class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemHelper {
+class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with CacheHelper {
   class StorePipeIO() extends FuBaseIO() {
     val tlb = new Bundle {
       val ptw     = Flipped(new TlbPtwIO())
@@ -61,7 +61,7 @@ class StorePipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMem
 
   val s1 = new MemDelegate {
     val out = Decoupled(new MicroOp {
-      import DCacheHelper._
+
       val wmask     = Vec(XBYTE, Bool())
       val wdata     = UWord()
       val tlbResp   = new TlbResp
