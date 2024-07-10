@@ -14,6 +14,20 @@ class ExceptIO(implicit p: Parameters) extends CoreBundle {
   val vec = ExceptionVec()
 }
 
+class FrontExcVec(implicit p: Parameters) extends CoreBundle {
+  val frontendSet: Seq[Int] = ExceptionNO.frontendSet
+  val stateNR = frontendSet.length + 1
+  val excCode = UInt(log2Ceil(stateNR).W)
+  def toExceptionVec() = {
+    val ret = ExceptionVec()
+    val stateMap = frontendSet.zipWithIndex.map {
+      case (eID, index) =>
+        (index.U, ExceptionVec(eID))
+    }
+    MuxLookup(excCode, ExceptionVec.clear())(stateMap)
+  }
+}
+
 //bpu info for per inst
 class PredictResultBundle(implicit p: Parameters) extends CoreBundle {
   val counter = UInt(2.W)
@@ -112,7 +126,7 @@ class InstBufferEntry(implicit p: Parameters) extends CoreBundle {
   val predictResult = new PredictResultBundle
   val realBrType    = BranchType()
   val basicInstInfo = new BasicInstInfoBundle
-  val exception     = FrontExcCode()
+  val excVec        = new FrontExcVec()
 }
 class InstBufferOutIO(implicit p: Parameters) extends InstBufferEntry {
   val whichFu  = FuType()

@@ -156,7 +156,8 @@ package object core {
   object ExceptionVec {
     val ExceptionVecSize = 24
     def apply()          = new ExceptionVec()
-    def clear()          = 0.U.asTypeOf(new ExceptionVec)
+    def apply(eID: Int) = (1.U << eID).asTypeOf(new ExceptionVec())
+    def clear() = 0.U.asTypeOf(new ExceptionVec)
   }
 
   object PMAMode {
@@ -552,19 +553,13 @@ package object core {
     def ecallM              = 11
     def instrPageFault      = 12
     def loadPageFault       = 13
-    // def singleStep          = 14
+    def singleStep          = 14
     def storePageFault      = 15
-    def instrGuestPageFault = 20
-    def loadGuestPageFault  = 21
-    def virtualInstr        = 22
-    def storeGuestPageFault = 23
     def priorities = Seq(
-      breakPoint, // TODO: different BP has different priority
+      breakPoint,
       instrPageFault,
-      instrGuestPageFault,
       instrAccessFault,
       illegalInstr,
-      virtualInstr,
       instrAddrMisaligned,
       ecallM,
       ecallS,
@@ -574,19 +569,15 @@ package object core {
       loadAddrMisaligned,
       storePageFault,
       loadPageFault,
-      storeGuestPageFault,
-      loadGuestPageFault,
       storeAccessFault,
       loadAccessFault
     )
     def all = priorities.distinct.sorted
     def frontendSet = Seq(
-      instrAddrMisaligned,
+      instrPageFault,
       instrAccessFault,
       illegalInstr,
-      instrPageFault,
-      instrGuestPageFault,
-      virtualInstr
+      instrAddrMisaligned
     )
     def partialSelect(vec: Vec[Bool], select: Seq[Int]): Vec[Bool] = {
       val new_vec = Wire(ExceptionVec())

@@ -50,7 +50,7 @@ class InstBuffer(implicit p: Parameters) extends CoreModule {
     ib.io.in(i).valid      := inBits.validMask(i) && io.in.valid
     pushBits.basicInstInfo := inBits.basicInstInfo(i)
     pushBits.predictResult := inBits.predictResult(i)
-    pushBits.exception     := inBits.exception
+    pushBits.excVec        := inBits.excVec
     pushBits.realBrType    := inBits.realBrType(i)
   })
   io.in.ready := ib.io.in(0).ready // any number is ok

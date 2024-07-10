@@ -30,18 +30,30 @@ import org.chipsalliance.cde.config._
   */
 class PreIf(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
-    val in = new Bundle {
-      val redirect = FrontRedirct.input()
-      val fromIf1  = Flipped(new IfStage1ToPreIf)
-    }
-    val out = new PreIfOutIO
+    val resetVector = Input(VAddr())
+    val redirect    = FrontRedirct.input()
+    val fromIf1     = Flipped(new IfStage1ToPreIf)
+    val out         = Decoupled(VAddr())
   })
-  io.out.npc := MuxCase(
-    getAlignPC(io.in.fromIf1.pcVal),
-    Seq(
-      io.in.redirect.valid -> io.in.redirect.bits.target,
-      io.in.fromIf1.predictRes.valid -> io.in.fromIf1.predictRes.bits
-    )
-  )
-  io.out.flush := io.in.redirect.valid
+  val PCRegister = RegInit(io.resetVector)
+  val normalNext = Mux(io.fromIf1.predictRes.valid, io.fromIf1.predictRes.bits, getAlignPC(io.fromIf1.pcVal))
+
+  when(io.out.fire) {
+    PCRegister := normalNext
+  }.elsewhen(io.redirect.valid) {
+    PCRegister := io.redirect.bits.target
+  }
+
+  val registerValid = RegInit(true.B)
+  when(io.out.fire) {
+    registerValid := false.B
+  }.elsewhen(io.out.valid && !io.out.ready) {
+    registerValid := true.B
+  }.elsewhen(io.redirect.valid) {
+    registerValid := true.B
+  }
+
+  io.out.bits := Mux(registerValid, PCRegister, normalNext)
+
+  io.out.valid := true.B
 }

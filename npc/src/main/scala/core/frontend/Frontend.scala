@@ -18,7 +18,7 @@ class Frontend(implicit p: Parameters) extends CoreModule {
   val instFetch  = Module(new InstFetch)
   val instBuffer = Module(new InstBuffer)
 
-  instFetch.io.bpuUpdateIn := io.back.bpuUpdateIn
+  instFetch.io.backendBPU := io.back.bpuUpdateIn
   instFetch.io.imem <> io.imem
   instFetch.io.redirect := io.back.redirect
   instFetch.io.ptw <> io.back.ptw

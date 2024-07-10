@@ -9,6 +9,7 @@ import org.chipsalliance.cde.config._
 import core.dram._
 import core.mmu._
 import core.cache.ICache
+import bpu._
 
 class InstFetch(implicit p: Parameters) extends CoreModule {
   val io = IO(new Bundle {
@@ -16,9 +17,9 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
     val redirect = FrontRedirct.input()
     val out      = Decoupled(new IfStage2OutIO)
 
-    val ptw         = new TlbPtwIO()
-    val imem        = new DramReadIO()
-    val bpuUpdateIn = Flipped(new BpuUpdateIO)
+    val ptw        = new TlbPtwIO()
+    val imem       = new DramReadIO()
+    val backendBPU = Flipped(new BpuUpdateIO)
   })
 
   val preIfStage = Module(new PreIf)
@@ -28,10 +29,8 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
 
   ifStage2.io.icache.resp <> icache.io.resp
   ifStage1.io.icache.req <> icache.io.req
-  ifStage1.io.icache.ctrl <> icache.io.ctrl
-  ifStage2.io.icache.ctrl <> icache.io.ctrl
 
-  preIfStage.io.in.redirect := FrontRedirct.merge(io.redirect, ifStage2.io.out.bits.redirect)
+  preIfStage.io.redirect := FrontRedirct.merge(io.redirect, ifStage2.io.out.bits.redirect)
 
   //If1 in
   ifStage1.io.in := preIfStage.io.out
@@ -48,7 +47,7 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
 
   // ifStage2 update BPU
   class BtbAssignBundle(implicit p: Parameters) extends CoreBundle {
-    val tagIdx   = UInt((32 - log2Ceil(IcachLineBytes)).W)
+    val tagIdx   = UInt((32 - log2Ceil(iCacheBlkBytes)).W)
     val instrOff = Vec(fetchNum, UInt(instrOffWidth.W))
     val wen      = Vec(fetchNum, Bool())
     val data     = Vec(fetchNum, new BtbOutIO)
@@ -62,7 +61,7 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
     }
   }
 
-  val if2Wio       = ifStage2.io.btbDeq.bits
+  val if2Wio       = ifStage2.io.writeBack.btb.bits
   val if2AssignBtb = Wire(new BtbAssignBundle)
   if2AssignBtb.tagIdx := if2Wio.tagIdx
   val if2OutWen      = Wire(Vec(fetchNum, Bool()))
@@ -73,7 +72,7 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
     val pc = Cat(if2Wio.tagIdx, if2Wio.instrOff(i), 0.U(2.W))
     val instr: RInstr = if2Wio.instr(i).asTypeOf(new RInstr()(p))
     val brDest = calDest(if2Wio.brType(i), instr, pc)
-    require(pc.getWidth == 32)
+    require(pc.getWidth == VAddrBits)
     if2OutWen(i)      := ifStage2.io.btbDeq.valid && if2Wio.valid(i) && (brDest.avaliable)
     if2OutTarget(i)   := brDest.dest
     if2OutInstType(i) := toBtbType(if2Wio.brType(i), instr.rs1, instr.rd)
@@ -89,37 +88,36 @@ class InstFetch(implicit p: Parameters) extends CoreModule {
   })
 
   val if2NoBr  = if2OutWen.asUInt.orR === false.B
-  val backWbtb = io.bpuUpdateIn.btb.valid
+  val backWbtb = io.backendBPU.btb.valid
   ifStage2.io.btbDeq.ready := if2NoBr || !backWbtb
 
   // backend update
   val backAssignBtb = Wire(new BtbAssignBundle)
   val if2PhtIO      = Wire(new PhtUpdateIO)
   val if2BtbIO      = Wire(new BtbUpdateIO)
-  val tagIdx        = io.bpuUpdateIn.pc(31, instrOffMsb + 1)
-  val instrOff      = io.bpuUpdateIn.pc(instrOffMsb, instrOffLsb)
+  val tagIdx        = io.backendBPU.pc(VAddrBits - 1, iCacheBlkPt)
+  val instrOff      = io.backendBPU.pc(iCacheBlkPt - 1, instrPt)
   val selValid      = VecInit.tabulate(fetchNum)(i => instrOff(1, 0) === i.U)
-  asg(backAssignBtb.tagIdx, tagIdx)
-  asg(backAssignBtb.instrOff, VecInit.fill(fetchNum)(instrOff))
+  backAssignBtb.tagIdx   := tagIdx
+  backAssignBtb.instrOff := VecInit.fill(fetchNum)(instrOff)
   (0 until fetchNum).foreach(i => {
-    asg(backAssignBtb.wen(i), selValid(i) && io.bpuUpdateIn.btb.valid)
-    asg(backAssignBtb.data(i), io.bpuUpdateIn.btb.bits)
+    backAssignBtb.wen(i)  := selValid(i) && io.backendBPU.btb.valid
+    backAssignBtb.data(i) := io.backendBPU.btb.bits
   })
-  asg(if2PhtIO.tagIdx, tagIdx)
-  asg(if2PhtIO.instrOff, VecInit.fill(fetchNum)(instrOff))
+  if2PhtIO.tagIdx   := tagIdx
+  if2PhtIO.instrOff := VecInit.fill(fetchNum)(instrOff)
   (0 until fetchNum).foreach(i => {
-    if2PhtIO.data(i).valid := selValid(i) && io.bpuUpdateIn.pht.valid
-    if2PhtIO.data(i).bits  := io.bpuUpdateIn.pht.bits
+    if2PhtIO.data(i).valid := selValid(i) && io.backendBPU.pht.valid
+    if2PhtIO.data(i).bits  := io.backendBPU.pht.bits
   })
   if2AssignBtb.passToUpdateIO(if2BtbIO)
   when(backWbtb) { backAssignBtb.passToUpdateIO(if2BtbIO) }
 
   // >> bpu ===============================================
-  ifStage2.io.bCacheW <> ifStage1.io.bCacheW
-  ifStage1.io.rasPop := ifStage2.io.rasPop
-  ifStage1.io.rasPush <> ifStage2.io.rasPush
-  ifStage1.io.btbWen := if2BtbIO
-  ifStage1.io.phtWen := if2PhtIO
+  ifStage1.io.writeback.bCache <> ifStage2.io.writeBack.bCache 
+  ifStage1.io.writeback.ras := ifStage2.io.writeBack.ras
+  ifStage1.io.writeback.btb := if2BtbIO
+  ifStage1.io.writeback.pht := if2PhtIO
   if (verilator) {
     // val if2FireIn = WireInit(ifStage1.io.out.fire && !if2Flush)
     //TODO: fix BoringUtils

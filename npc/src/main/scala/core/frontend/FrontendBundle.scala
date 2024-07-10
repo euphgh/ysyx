@@ -9,17 +9,19 @@ import core.mmu._
 import utility._
 import utils._
 import dram._
+import bpu._
+import core.ExceptionVec
+import core.ExceptionVec
 
 class PreIfOutIO(implicit p: Parameters) extends CoreBundle {
-  val npc         = Output(UInt(VAddrBits.W))
-  val isDelaySlot = Output(Bool()) // tell stage1 alignMask should be b0001
-  val flush       = Output(Bool())
+  val npc   = Output(VAddr())
+  val force = Output(Bool())
 }
 
 //should be fast, because in one cycle
 class IfStage1ToPreIf(implicit p: Parameters) extends CoreBundle {
-  val pcVal      = Output(UInt(VAddrBits.W))
-  val predictRes = Output(Valid(UInt32()))
+  val pcVal      = Output(VAddr())
+  val predictRes = Output(Valid(VAddr()))
 }
 
 //can be slow, register will stage them
@@ -28,12 +30,11 @@ class IfStage1OutIO(implicit p: Parameters) extends CoreBundle {
   // not order waiting
   val bpuOut         = Vec(fetchNum, Output(new PredictResultBundle))
   val bCacheHit      = Input(Vec(fetchNum, Bool()))
-  val pcVal          = Output(UInt(VAddrBits.W))
+  val pcVal          = Output(VAddr())
   val tagOfInstGroup = Output(UInt(12.W))
   val isUncached     = Output(Bool())
-  val exception      = Output(FrontExcCode())
-  val iCache         = new CacheStage1OutIO(IcachRoads, IcachLineBytes / 4, false)
-  val bCacheDst      = Output(Valid(UInt32()))
+  val iCache         = new CacheStage1OutIO(IcachRoads, iCacheBlkBytes / 4, false)
+  val bCacheDst      = Output(Valid(VAddr()))
   val tlbResp        = Valid(new TlbResp)
 }
 
@@ -43,8 +44,9 @@ class IfStage2OutIO(implicit p: Parameters) extends CoreBundle {
   val realBrType    = Vec(fetchNum, BranchType())
   val basicInstInfo = Vec(fetchNum, new BasicInstInfoBundle)
   val validMask     = Vec(fetchNum, Bool())
-  val exception     = FrontExcCode()
+  val excVec        = new FrontExcVec()
   val redirect      = FrontRedirct.output()
+  val bCacheHit     = Bool()
 }
 
 class FrontBackIO(implicit p: Parameters) extends CoreBundle {
