@@ -24,9 +24,6 @@ class InOrderReservationStation(rsSize: Int, outNum: Int)(implicit p: Parameters
   val io = Wire(new ReservationStationIO(outNum))
 
   val queue = new BaseMultiPortBuffer(renameNum, outNum, rsSize, new MicroOp) {
-    buffer(deqPtrVec(0))
-    buffer(deqPtrVec(1))
-    buffer(deqPtrVec(outNum))
     override val numDeq: UInt = ???
   }
 

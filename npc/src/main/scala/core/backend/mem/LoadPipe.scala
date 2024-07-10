@@ -9,7 +9,7 @@ import chisel3.util._
 import core.backend._
 import org.chipsalliance.cde.config._
 
-class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemHelper {
+class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with CacheHelper {
   class LoadPipeIO() extends FuBaseIO() {
     val byPass = Flipped(Valid(new RefillByPass())) // used for pipeline
     val tlb = new Bundle {
@@ -30,7 +30,6 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
   }
 
   def refillHit(paddr: UInt) = {
-    import DCacheHelper._
     val ret         = Valid(UWord())
     val refillPaddr = io.byPass.bits.paddr
     ret.valid := getTag(paddr) === getTag(refillPaddr) && getIndex(paddr) === getIndex(refillPaddr) && io.byPass.valid
@@ -64,7 +63,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     Connect.pipeReadyValid(out, in)
 
     out.bits.vaddr      := in.bits.srcs(0) + in.bits.srcs(1)
-    io.dcache.req.bits  := DCacheHelper.getIndex(out.bits.vaddr)
+    io.dcache.req.bits  := getIndex(out.bits.vaddr)
     io.dcache.req.valid := in.valid
 
     val tlbReq = Decoupled(TlbReq.load(out.bits.vaddr, out.bits.fuOp, out.bits.debugHW))
@@ -76,14 +75,14 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
   override val s0OutFire = s0.out.fire
 
   class S1RefillByPass extends MemBundle {
-    val tag  = UInt(DCacheHelper.pTagWidth.W)
+    val tag  = UInt(pTagWidth.W)
     val data = UWord()
   }
   /* search tlb, send paddr to wbuffer, no matter exception */
   val s1 = new MemDelegate {
     val out = Decoupled(new MicroOp {
-      import DCacheHelper._
-      val meta  = Vec(nWays, new DCacheMeta)
+
+      val meta  = Vec(nWays, new DCacheMeta())
       val data  = Vec(nWays, UWord())
       val rmask = Vec(XBYTE, Bool())
 
@@ -100,10 +99,13 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
 
     AssertWhen(in.valid, tlb.requestor.resp.valid)
 
-    out.bits.meta := io.dcache.resp.map(_.meta)
-    AssertWhen(in.valid, io.dcache.resp.head.debugIndex === DCacheHelper.getIndex(in.bits.vaddr))
+    out.bits.meta.zip(io.dcache.resp).foreach {
+      case (outMeta, cacheResp) =>
+        outMeta := cacheResp.meta
+    }
+    AssertWhen(in.valid, io.dcache.resp.head.debugIndex === getIndex(in.bits.vaddr))
 
-    val wordOff = DCacheHelper.getXLEN(in.bits.vaddr)
+    val wordOff = getXLEN(in.bits.vaddr)
     out.bits.data.zipWithIndex.foreach {
       case (data, index) =>
         val wordVec = UWord.toVec(io.dcache.resp(index).data)
@@ -115,7 +117,7 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     out.bits.rmask := MemType.mask(in.bits.fuOp, in.bits.vaddr(2, 0))
 
     def refillMatch(refillIn: Valid[RefillByPass]) = {
-      import DCacheHelper._
+
       val ret = Valid(new S1RefillByPass())
       ret.valid     := refillIn.valid && getIndex(refillIn.bits.paddr) === getIndex(in.bits.vaddr)
       ret.bits.tag  := getTag(refillIn.bits.paddr)
@@ -207,8 +209,8 @@ class LoadPipe(implicit p: Parameters) extends FuncUnit(FuType.lsu) with HasMemH
     out.valid := in.valid && tlbAutomata.isHit && wbufferAutomata.respValid
 
     val dcacheHitVec = VecInit(in.bits.meta.map { meta =>
-      meta.statu =/= DCacheLineStatu.none &&
-      meta.tag === DCacheHelper.getTag(tlbAutomata.hitResp.paddr)
+      DCacheLineStatu.hit(meta.statu) &&
+      meta.tag === getTag(tlbAutomata.hitResp.paddr)
     })
     AssertWhen(in.valid, PopCount(dcacheHitVec) <= 1.U)
     out.bits.dCacheResp.hit   := dcacheHitVec.asUInt.orR
