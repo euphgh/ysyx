@@ -9,7 +9,7 @@ import utility._
 abstract class ChiselApp extends App {
   def run(module: (Parameters) => RawModule, args: Array[String] = Array()) = {
     val (config, firrtlOpts, firtoolOpts) = ArgParser.parse(args)
-    Generator.execute(firrtlOpts ++ Array("-td", "build"), module(config), firtoolOpts)
+    Generator(firrtlOpts ++ Array("-td", "build"), module(config), firtoolOpts)
   }
 }
 

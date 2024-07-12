@@ -1,25 +1,28 @@
 import mill._
 import mill.scalalib._
 import mill.scalalib.scalafmt.ScalafmtModule
+import mill.scalalib.TestModule.ScalaTest
+// support BSP
+import mill.bsp._
 import $file.difftest.build
 import $file.`rocket-chip`.common
 import $file.`rocket-chip`.cde.common
 import $file.`rocket-chip`.hardfloat.build
 
-val defaultScalaVersion = "2.13.10"
+val defaultScalaVersion = "2.13.14"
 
 def defaultVersions(chiselVersion: String) = chiselVersion match {
   case "chisel" =>
     Map(
-      "chisel" -> ivy"org.chipsalliance::chisel:6.0.0",
-      "chisel-plugin" -> ivy"org.chipsalliance:::chisel-plugin:6.0.0",
-      "chiseltest" -> ivy"edu.berkeley.cs::chiseltest:5.0.2"
+      "chisel" -> ivy"org.chipsalliance::chisel:6.4.0",
+      "chisel-plugin" -> ivy"org.chipsalliance:::chisel-plugin:6.4.0",
+      "chiseltest" -> ivy"edu.berkeley.cs::chiseltest:6.0.0",
     )
   case "chisel3" =>
     Map(
-      "chisel" -> ivy"edu.berkeley.cs::chisel3:3.6.0",
-      "chisel-plugin" -> ivy"edu.berkeley.cs:::chisel3-plugin:3.6.0",
-      "chiseltest" -> ivy"edu.berkeley.cs::chiseltest:0.6.2"
+      "chisel" -> ivy"edu.berkeley.cs::chisel3:3.6.1",
+      "chisel-plugin" -> ivy"edu.berkeley.cs:::chisel3-plugin:3.6.1",
+      "chiseltest" -> ivy"edu.berkeley.cs::chiseltest:0.6.2",
     )
 }
 
@@ -49,24 +52,28 @@ trait Difftest extends HasChisel {
 
 object rocketchip extends Cross[RocketChip]("chisel", "chisel3")
 
-trait RocketChip extends millbuild.`rocket-chip`.common.RocketChipModule with HasChisel {
+trait RocketChip
+  extends millbuild.`rocket-chip`.common.RocketChipModule
+    with HasChisel {
   def scalaVersion: T[String] = T(defaultScalaVersion)
 
   override def millSourcePath = os.pwd / "rocket-chip"
 
-  override def macrosModule = macros
+  def macrosModule = macros
 
-  override def hardfloatModule = hardfloat(crossValue)
+  def hardfloatModule = hardfloat(crossValue)
 
-  override def cdeModule = cde
+  def cdeModule = cde
 
-  def mainargsIvy = ivy"com.lihaoyi::mainargs:0.5.4"
+  def mainargsIvy = ivy"com.lihaoyi::mainargs:0.7.0"
 
-  def json4sJacksonIvy = ivy"org.json4s::json4s-jackson:4.0.6"
+  def json4sJacksonIvy = ivy"org.json4s::json4s-jackson:4.0.7"
 
   object macros extends Macros
 
-  trait Macros extends millbuild.`rocket-chip`.common.MacrosModule with SbtModule {
+  trait Macros
+    extends millbuild.`rocket-chip`.common.MacrosModule
+      with SbtModule {
 
     def scalaVersion: T[String] = T(defaultScalaVersion)
 
@@ -75,7 +82,8 @@ trait RocketChip extends millbuild.`rocket-chip`.common.RocketChipModule with Ha
 
   object hardfloat extends Cross[Hardfloat](crossValue)
 
-  trait Hardfloat extends millbuild.`rocket-chip`.hardfloat.common.HardfloatModule with HasChisel {
+  trait Hardfloat
+    extends millbuild.`rocket-chip`.hardfloat.common.HardfloatModule with HasChisel {
 
     def scalaVersion: T[String] = T(defaultScalaVersion)
 
@@ -134,9 +142,6 @@ trait PlayGround extends HasChisel {
   def utilityModule = utility(crossValue)
 
   def macrosModule = macros(crossValue)
-
-  override def forkArgs = Seq("-Xmx20G", "-Xss256m")
-
   override def sources = T.sources {
     super.sources() ++ Seq(PathRef(millSourcePath / "src" / crossValue / "main" / "scala"))
   }
@@ -147,7 +152,7 @@ trait PlayGround extends HasChisel {
     utilityModule,
     difftestModule
   )
-
+  
   object test extends SbtModuleTests with TestModule.ScalaTest {
     override def forkArgs = Seq("-Xmx20G", "-Xss256m")
 
